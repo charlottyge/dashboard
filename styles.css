@@ -141,10 +141,7 @@ h1 {
 }
 
 .metric-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  display: none !important;
 }
 
 .metric,
@@ -287,7 +284,7 @@ input {
 }
 
 .metric-grid.app-view.active {
-  display: grid;
+  display: none !important;
 }
 
 .checkpoint-tabs {
@@ -345,6 +342,75 @@ input {
 .brief-conclusion {
   border-color: #b9d9d3;
   background: #f4fbf9;
+}
+
+.brief-conclusion h3 {
+  margin-top: 18px;
+  font-size: 22px;
+}
+
+.market-analysis {
+  margin-top: 8px;
+  max-width: 1080px;
+  color: #24363d;
+  font-size: 21px;
+  line-height: 1.65;
+}
+
+.market-snapshot {
+  display: grid;
+  grid-template-columns: 110px minmax(240px, 1.4fr) repeat(3, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.market-snapshot div {
+  border: 1px solid #cfe3df;
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 10px;
+}
+
+.market-snapshot span,
+.market-snapshot strong {
+  display: block;
+}
+
+.market-snapshot span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.market-snapshot strong {
+  margin-top: 5px;
+  color: #172126;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.summary-box {
+  border: 1px solid #cfe3df;
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 12px;
+}
+
+.summary-box h4 {
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.summary-box p {
+  margin-top: 0;
+  color: #40515a;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .skill-demo {
@@ -660,6 +726,138 @@ input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 16px;
+}
+
+.preopen-hero,
+.preopen-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 16px;
+  margin: 18px;
+}
+
+.preopen-hero {
+  border-color: #b9d9d3;
+  background: #f4fbf9;
+}
+
+.preopen-hero h2 {
+  font-size: 26px;
+  line-height: 1.25;
+}
+
+.preopen-hero p,
+.preopen-card > p {
+  margin-top: 8px;
+  color: #34464e;
+  line-height: 1.6;
+}
+
+.preopen-grid {
+  display: grid;
+  gap: 14px;
+  margin: 0 18px;
+}
+
+.preopen-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.preopen-grid .preopen-card {
+  margin: 0;
+}
+
+.preopen-card h3 {
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+.preopen-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.preopen-list li {
+  color: #34464e;
+  line-height: 1.55;
+}
+
+.preopen-line-group {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.preopen-line-group h4 {
+  font-size: 15px;
+}
+
+.preopen-line,
+.preopen-note,
+.preopen-sector-card,
+.signal-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfcfd;
+  padding: 11px;
+}
+
+.preopen-line strong,
+.preopen-line p,
+.preopen-note strong,
+.preopen-note p,
+.preopen-sector-card strong,
+.preopen-sector-card span,
+.preopen-sector-card p {
+  display: block;
+}
+
+.preopen-line p,
+.preopen-note p,
+.preopen-sector-card p {
+  margin-top: 6px;
+  color: #40515a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.signal-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.signal-row {
+  display: grid;
+  grid-template-columns: 120px 90px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.signal-row span {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.signal-row em {
+  color: var(--muted);
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.preopen-sector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.preopen-sector-card span {
+  margin-top: 5px;
+  color: var(--accent);
+  font-size: 12px;
 }
 
 .candidate-dashboard {
@@ -1148,7 +1346,8 @@ footer {
   .metric-grid,
   .file-list,
   .candidate-grid,
-  .strategy-candidate-grid {
+  .strategy-candidate-grid,
+  .preopen-sector-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1165,9 +1364,16 @@ footer {
   .decision-grid,
   .brief-two-col,
   .skill-demo-grid,
+  .preopen-grid.two,
+  .market-snapshot,
+  .summary-grid,
   .mainline-groups,
   .portfolio-form,
   .markdown-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .signal-row {
     grid-template-columns: 1fr;
   }
 

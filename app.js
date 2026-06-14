@@ -61,32 +61,6 @@ function byId(id) {
   return document.getElementById(id);
 }
 
-function renderMetrics(day) {
-  const checkpoints = day?.checkpoints || [];
-  const latest = checkpoints[checkpoints.length - 1] || {};
-  const decision = latest.decision || {};
-  const p0 = (decision.portfolio_priority || []).filter((item) => item.priority === "P0").length;
-  const metrics = [
-    ["时间点", checkpoints.length, "当前交易日已有扫描数量"],
-    ["市场状态", value(decision.market_state), value(latest.label, "")],
-    ["风险偏好", value(decision.risk_preference), p0 ? `${p0} 个 P0 持仓优先处理` : "无 P0 持仓"],
-    ["数据错误", value(latest.summary?.error_count || 0), "来自最新 checkpoint summary"],
-  ];
-  const target = byId("view-radar-metrics") || byId("metrics");
-  if (!target) return;
-  target.innerHTML = metrics
-    .map(
-      ([label, number, note]) => `
-        <div class="metric">
-          <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(number)}</strong>
-          <small>${escapeHtml(note)}</small>
-        </div>
-      `,
-    )
-    .join("");
-}
-
 function setupDateSelector() {
   const select = byId("date-select");
   if (!select) return;
@@ -118,7 +92,6 @@ function renderViewTabs() {
 function selectDay(date) {
   activeDay = (siteData.timeline_days || []).find((day) => day.date === date);
   activeCheckpointId = activeDay?.checkpoints?.[activeDay.checkpoints.length - 1]?.id || null;
-  renderMetrics(activeDay);
   renderPreopen(activeDay);
   renderTimeline();
 }
@@ -181,8 +154,13 @@ function renderActionBrief(checkpoint) {
   return `
     <section class="brief brief-conclusion">
       <div class="brief-kicker">${escapeHtml(checkpoint.label)}</div>
-      <h2>${escapeHtml(demo.headline || conclusionTitle(decision))}</h2>
-      <p>${escapeHtml(demo.verdict || conclusionText(decision))}</p>
+      ${renderMarketSnapshot(checkpoint)}
+      <h3>盘面分析</h3>
+      <p class="market-analysis">${escapeHtml(demo.verdict || conclusionText(decision))}</p>
+      <div class="summary-grid">
+        ${renderHoldingSummary(checkpoint)}
+        ${renderCandidateSummary(checkpoint)}
+      </div>
       <div class="pill-row">
         <span class="pill">风险偏好：${escapeHtml(value(decision.risk_preference))}</span>
         <span class="pill">主线状态：${escapeHtml(mainlineState(decision))}</span>
@@ -212,6 +190,77 @@ function renderActionBrief(checkpoint) {
       <h3>今天不要做什么</h3>
       ${renderAvoidList(checkpoint)}
     </section>
+  `;
+}
+
+function renderMarketSnapshot(checkpoint) {
+  const market = ["market_overview.csv", "market_close_confirm.csv", "final_market.csv"]
+    .map((name) => firstTableRow(checkpoint, name))
+    .find((row) => Object.keys(row).length) || {};
+  const indexText =
+    market["指数涨幅"] ||
+    [
+      market["上证"] ? `上证 ${market["上证"]}%` : "",
+      market["创业板"] ? `创业板 ${market["创业板"]}%` : "",
+      market["科创50"] ? `科创50 ${market["科创50"]}%` : "",
+    ]
+      .filter(Boolean)
+      .join(" / ");
+  const cells = [
+    ["时间", market["时间"] || checkpoint.label || "-"],
+    ["指数", indexText || "-"],
+    ["成交额", formatAmount(market["成交额预估"] || market["成交额"] || "")],
+    ["涨跌家数", market["涨跌家数"] || "-"],
+    ["涨停/跌停", market["涨停/跌停"] || "-"],
+  ];
+  return `
+    <div class="market-snapshot">
+      ${cells
+        .map(
+          ([label, text]) => `
+            <div>
+              <span>${escapeHtml(label)}</span>
+              <strong>${escapeHtml(text)}</strong>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderHoldingSummary(checkpoint) {
+  const priorities = checkpoint.decision?.portfolio_priority || [];
+  const p0 = priorities.filter((item) => item.priority === "P0").slice(0, 3);
+  const p1 = priorities.filter((item) => item.priority === "P1").slice(0, 3);
+  const text = p0.length
+    ? `优先处理：${p0.map((item) => item.stock).join("、")}。先看修复线，不补弱。`
+    : p1.length
+      ? `重点观察：${p1.map((item) => item.stock).join("、")}。站回修复线才说明风险缓和。`
+      : "暂无 P0/P1 持仓风险，按尾盘或下一 checkpoint 复核。";
+  return `
+    <article class="summary-box">
+      <h4>持仓总结</h4>
+      <p>${escapeHtml(text)}</p>
+    </article>
+  `;
+}
+
+function renderCandidateSummary(checkpoint) {
+  const { rows } = candidateRowsForCheckpoint(checkpoint);
+  const items = rows.map(candidateInsight);
+  const risky = items.filter((item) => item.riskLevel === "high").slice(0, 3);
+  const focus = candidateGroups(items).research.slice(0, 3);
+  const text = focus.length
+    ? `重点研究：${focus.map((item) => item.stock).join("、")}；仍需下一 checkpoint 确认。`
+    : risky.length
+      ? `不建议追高：${risky.map((item) => item.stock).join("、")} 已有承接或高位风险。`
+      : `当前候选 ${items.length} 条，先按板块、VWAP、回撤分层观察。`;
+  return `
+    <article class="summary-box">
+      <h4>候选总结</h4>
+      <p>${escapeHtml(text)}</p>
+    </article>
   `;
 }
 
@@ -600,6 +649,223 @@ function renderAvoidList(checkpoint) {
   }
   if (!items.length) items.push("不要临盘改计划。没有清晰确认前，只做观察和记录。");
   return `<ol class="avoid-list">${items.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>`;
+}
+
+function renderPreopen(day) {
+  const target = byId("preopen-content");
+  if (!target) return;
+  if (!day) {
+    target.innerHTML = '<p class="empty">暂无盘前预案。</p>';
+    return;
+  }
+  const checkpoints = day.checkpoints || [];
+  const first = checkpoints.find((item) => !isStrategyCheckpoint(item)) || checkpoints[0];
+  const latest = [...checkpoints].reverse().find((item) => !isStrategyCheckpoint(item)) || checkpoints[checkpoints.length - 1];
+  const strategy = checkpoints.find(isStrategyCheckpoint);
+  const sectors = tableRows(first, "market_sector_scan.csv").slice(0, 8);
+  const latestSectors = tableRows(latest, "market_sector_scan.csv").slice(0, 8);
+  const strongLines = sectors.slice(0, 4);
+  const weakLines = (latest?.decision?.weakening_mainlines || []).slice(0, 4);
+  const tempLines = preopenTemperatureLines(sectors, latestSectors);
+  const focusSectors = preopenFocusSectors(strongLines, latestSectors);
+  const candidateItems = candidateRowsForCheckpoint(strategy || first).rows.map(candidateInsight);
+  const candidatePlan = candidateGroups(candidateItems);
+  const portfolioItems = preopenPortfolioPlan(latest);
+  const fallbackUsed = Boolean(first?.summary?.fallback_used || latest?.summary?.fallback_used);
+  const errorCount = Number(first?.summary?.error_count || 0) + Number(latest?.summary?.error_count || 0);
+  const headline = fallbackUsed
+    ? "数据有 fallback，今天只做验证，不放大仓位。"
+    : "高位分化后的验证日，不追高，等 09:45 / 10:30 确认。";
+
+  target.innerHTML = `
+    <section class="preopen-hero">
+      <span class="brief-kicker">${escapeHtml(day.date)} · 盘前预案 demo</span>
+      <h2>${escapeHtml(headline)}</h2>
+      <p>盘前信息的目标不是收集新闻，而是在开盘前 5 分钟回答：今天验证什么，什么情况下不该动手。</p>
+      <div class="pill-row">
+        <span class="pill">风险偏好：${escapeHtml(fallbackUsed ? "中等偏低" : "中等")}</span>
+        <span class="pill">主线状态：分化验证</span>
+        <span class="pill">操作倾向：不追高，等确认</span>
+      </div>
+    </section>
+
+    <section class="preopen-card">
+      <h3>今日最重要的 3 件事</h3>
+      <ol class="preopen-list">
+        <li>${escapeHtml(focusSectors[0]?.name || "昨日强线")} 是否能在 09:45 继续留在前排。</li>
+        <li>旧主线温度计是否拖累科技风险偏好。</li>
+        <li>持仓里 P0 / P1 是否开盘修复，不能把弱票中线化。</li>
+      </ol>
+    </section>
+
+    <div class="preopen-grid two">
+      <section class="preopen-card">
+        <h3>昨日强弱线验证</h3>
+        ${renderPreopenLineGroup("昨日强线", strongLines.map((row) => ({
+          name: row["板块"] || "-",
+          status: "昨日/早盘强分支",
+          confirm: "09:45 仍在前 10，10:30 中军站稳 VWAP",
+          invalid: "高开低走，前排冲高回落，中军跌破 VWAP",
+        })))}
+        ${renderPreopenLineGroup("昨日分歧线", weakLines.map((item) => ({
+          name: item.name,
+          status: humanStage(item),
+          confirm: "中军止跌并收回 VWAP",
+          invalid: "低开低走，只有小票脉冲",
+        })))}
+        ${renderPreopenLineGroup("旧主线温度计", tempLines.map((name) => ({
+          name,
+          status: "科技情绪温度计",
+          confirm: "稳住则科技修复可信度上升",
+          invalid: "继续弱则降低科技风险偏好",
+        })))}
+      </section>
+
+      <section class="preopen-card">
+        <h3>隔夜新闻 / 外围市场</h3>
+        <div class="preopen-note">
+          <strong>当前 demo 状态</strong>
+          <p>尚未接入实时新闻、外围指数、汇率和商品数据。盘前只预留判断框架，避免把旧数据当实时信号。</p>
+        </div>
+        ${renderSignalRows([
+          ["政策 / 产业新闻", "待更新", "只记录会改变预案的催化，不做新闻堆叠"],
+          ["海外映射", "待更新", "重点看纳指、费半、英伟达/台积电 ADR 对科技情绪的影响"],
+          ["大宗商品", "待更新", "重点看铜、煤、油、黄金是否改变资源/防守线预案"],
+          ["汇率 / 港股科技", "待更新", "只判断是否扰动 A 股风险偏好"],
+        ])}
+      </section>
+    </div>
+
+    <section class="preopen-card">
+      <h3>今日重点观察板块</h3>
+      <div class="preopen-sector-grid">
+        ${focusSectors.map(renderPreopenSectorCard).join("") || '<p class="empty">暂无重点观察板块。</p>'}
+      </div>
+    </section>
+
+    <section class="preopen-card">
+      <h3>今日持仓预案</h3>
+      ${portfolioItems.length ? `<div class="priority-list">${portfolioItems.map(renderPriorityCard).join("")}</div>` : '<p class="empty">暂无持仓预案。请先在持仓管理里补充持仓。</p>'}
+    </section>
+
+    <section class="preopen-card">
+      <h3>今日候选池预案</h3>
+      <div class="candidate-layers">
+        ${renderCandidateLayer("A. 可重点研究", "最多 3 个，开盘后仍需确认，不是买入清单。", candidatePlan.research)}
+        ${renderCandidateLayer("B. 只观察不追", "最多 5 个，有异动但还未证明。", candidatePlan.observe)}
+        ${renderCandidateLayer("C. 暂不看 / 不追高", "高拥挤、反抽失败、数据不可信或信息优先级低。", candidatePlan.avoid)}
+      </div>
+    </section>
+
+    <div class="preopen-grid two">
+      <section class="preopen-card avoid-box">
+        <h3>今日不要做什么</h3>
+        ${renderPreopenDoNotDo(fallbackUsed)}
+      </section>
+      <section class="preopen-card">
+        <h3>数据可信度</h3>
+        ${renderSignalRows([
+          ["最新 demo 日期", day.date, "来自本地静态数据"],
+          ["盘前新闻", "未接入", "不要把新闻框架当实时新闻"],
+          ["外围数据", "未接入", "需要后续接入数据源"],
+          ["持仓成本", siteData.portfolio?.modified ? "已读取" : "未读取", siteData.portfolio?.source || "portfolio.md"],
+          ["fallback", fallbackUsed ? "是" : "否", fallbackUsed ? "今日信号权重降低，只观察不放大仓位" : "信号权重正常"],
+          ["错误数", String(errorCount), "采集错误越多，越要降低行动强度"],
+        ])}
+      </section>
+    </div>
+  `;
+}
+
+function preopenTemperatureLines(...sectorGroups) {
+  const names = sectorGroups.flat().map((row) => row["板块"] || "").filter(Boolean);
+  const matched = names.filter((name) => /CPO|光通信|光纤|PCB|存储|算力|AI/.test(name));
+  return [...new Set(matched)].slice(0, 4).concat(["CPO / 光通信"].filter((name) => !matched.length)).slice(0, 4);
+}
+
+function preopenFocusSectors(strongRows, latestRows) {
+  const rows = [...strongRows, ...latestRows];
+  const seen = new Set();
+  return rows
+    .map((row) => ({
+      name: row["板块"] || "-",
+      role: "今日验证方向",
+      rank: row["涨幅排名"] || row["板块排名"] || "-",
+      pct: row["涨幅"] || row["板块涨幅"] || "",
+    }))
+    .filter((item) => {
+      if (seen.has(item.name)) return false;
+      seen.add(item.name);
+      return item.name && item.name !== "-";
+    })
+    .slice(0, 5);
+}
+
+function renderPreopenLineGroup(title, items) {
+  return `
+    <div class="preopen-line-group">
+      <h4>${escapeHtml(title)}</h4>
+      ${
+        items.length
+          ? items.slice(0, 4).map((item) => `
+            <article class="preopen-line">
+              <strong>${escapeHtml(item.name)}</strong>
+              <p>状态：${escapeHtml(item.status)}</p>
+              <p>今日验证：${escapeHtml(item.confirm)}</p>
+              <p>失效：${escapeHtml(item.invalid)}</p>
+            </article>
+          `).join("")
+          : '<p class="empty">暂无。</p>'
+      }
+    </div>
+  `;
+}
+
+function renderSignalRows(rows) {
+  return `<div class="signal-list">${rows.map(([label, valueText, note]) => `
+    <div class="signal-row">
+      <strong>${escapeHtml(label)}</strong>
+      <span>${escapeHtml(valueText)}</span>
+      <em>${escapeHtml(note)}</em>
+    </div>
+  `).join("")}</div>`;
+}
+
+function renderPreopenSectorCard(item) {
+  return `
+    <article class="preopen-sector-card">
+      <strong>${escapeHtml(item.name)}</strong>
+      <span>${escapeHtml([item.role, item.rank !== "-" ? `排名 ${item.rank}` : "", item.pct ? `${item.pct}%` : ""].filter(Boolean).join(" · "))}</span>
+      <p>盘前条件：竞价不宜高开过多，只看确认。</p>
+      <p>09:45 确认：板块仍在前 10，中军不杀。</p>
+      <p>10:30 确认：换手后仍站 VWAP。</p>
+      <p>风险：若只有小票冲，视为补涨末端。</p>
+    </article>
+  `;
+}
+
+function preopenPortfolioPlan(latest) {
+  const priority = (latest?.decision?.portfolio_priority || []).slice(0, 6);
+  if (priority.length) return priority;
+  return mergedHoldings().slice(0, 6).map((row) => ({
+    stock: [row.name, row.code].filter(Boolean).join(" ") || row.code || row.name,
+    priority: "P2",
+    reason: row.note || "盘前持仓观察",
+    trigger_price: "",
+    invalid_condition: "",
+  }));
+}
+
+function renderPreopenDoNotDo(fallbackUsed) {
+  const items = [
+    "不要因为竞价排名第一就追高。",
+    "不要补弱于板块的亏损仓。",
+    "不要把反抽失败当成新主线。",
+    "不要因为昨天卖飞，就在今天开盘情绪化追回。",
+    "不要把短线题材仓改口成中线仓。",
+  ];
+  if (fallbackUsed) items.push("不要在数据 fallback 较多时放大仓位。");
+  return `<ol class="avoid-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>`;
 }
 
 function currentCheckpoint() {
