@@ -38,6 +38,7 @@ const tableLabels = {
 let siteData = null;
 let activeDay = null;
 let activeCheckpointId = null;
+let activeView = "radar";
 
 function value(input, fallback = "-") {
   return input === null || input === undefined || input === "" ? fallback : input;
@@ -67,7 +68,7 @@ function renderMetrics(day) {
     ["风险偏好", value(decision.risk_preference), p0 ? `${p0} 个 P0 持仓优先处理` : "无 P0 持仓"],
     ["数据错误", value(latest.summary?.error_count || 0), "来自最新 checkpoint summary"],
   ];
-  document.getElementById("metrics").innerHTML = metrics
+  document.getElementById("view-radar-metrics").innerHTML = metrics
     .map(
       ([label, number, note]) => `
         <div class="metric">
@@ -86,6 +87,25 @@ function setupDateSelector() {
   select.innerHTML = days.map((day) => `<option value="${escapeHtml(day.date)}">${escapeHtml(day.date)}</option>`).join("");
   select.addEventListener("change", () => selectDay(select.value));
   if (days.length) selectDay(days[0].date);
+}
+
+function setupViewTabs() {
+  document.querySelectorAll(".view-tab").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeView = button.dataset.view;
+      renderViewTabs();
+    });
+  });
+  renderViewTabs();
+}
+
+function renderViewTabs() {
+  document.querySelectorAll(".view-tab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === activeView);
+  });
+  document.querySelectorAll(".app-view").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.viewPanel === activeView);
+  });
 }
 
 function selectDay(date) {
@@ -143,21 +163,46 @@ function renderCheckpoint(checkpoint) {
         ${renderDecisionLists(decision)}
       </section>
     </div>
-    <div class="table-stack">${(checkpoint.tables || []).map(renderTable).join("")}</div>
   `;
+  renderCheckpointTables(checkpoint);
 }
 
 function renderDecisionLists(decision) {
   return `
     <div class="decision-grid">
+      ${renderItemList("市场情绪", buildMarketEmotionItems(decision), renderEmotionItem)}
       ${renderItemList("确认主线", decision.confirmed_mainlines, renderLineItem)}
       ${renderItemList("走弱方向", decision.weakening_mainlines, renderLineItem)}
       ${renderItemList("新改善方向", decision.new_improving_lines, renderLineItem)}
-      ${renderItemList("不要追高", decision.do_not_chase, renderChaseItem)}
+      ${renderItemList("第一轮冲击候选", firstImpactCandidates(), renderCandidateItem)}
       ${renderItemList("持仓优先级", decision.portfolio_priority, renderPortfolioPriority)}
       ${renderItemList("下一 checkpoint 看什么", decision.next_checkpoint_watch, renderWatchItem)}
     </div>
   `;
+}
+
+function currentCheckpoint() {
+  const checkpoints = activeDay?.checkpoints || [];
+  return checkpoints.find((item) => item.id === activeCheckpointId) || checkpoints[0];
+}
+
+function renderCheckpointTables(checkpoint) {
+  const target = document.getElementById("checkpoint-tables");
+  if (!target) return;
+  document.getElementById("tables-subtitle").textContent = checkpoint
+    ? `${checkpoint.label} · ${checkpoint.directory}`
+    : "当前 checkpoint 的原始输出表。";
+  target.innerHTML = checkpoint ? (checkpoint.tables || []).map(renderTable).join("") : '<p class="empty">暂无数据表。</p>';
+}
+
+function buildMarketEmotionItems(decision) {
+  const quality = decision.data_quality || {};
+  return [
+    { label: "市场状态", value: value(decision.market_state, "暂无") },
+    { label: "风险偏好", value: value(decision.risk_preference, "暂无") },
+    { label: "数据质量", value: quality.fallback_used ? "部分 fallback" : "正常" },
+    { label: "错误记录", value: value(quality.error_count, 0) },
+  ];
 }
 
 function renderItemList(title, items, renderer) {
@@ -192,8 +237,27 @@ function renderLineItem(item) {
   `;
 }
 
-function renderChaseItem(item) {
-  return `<strong>${escapeHtml(item.stock)}</strong><span>${escapeHtml(item.candidate_type || "")}</span><em>${escapeHtml(item.reason || "")}</em>`;
+function renderEmotionItem(item) {
+  return `<strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.value)}</span>`;
+}
+
+function firstImpactCandidates() {
+  const checkpoint = currentCheckpoint();
+  const tables = checkpoint?.tables || [];
+  const preferred = tables.find((table) => table.name === "candidate_first_impact.csv");
+  const fallback = tables.find((table) => table.name === "candidate_scores.csv" || table.name === "strategy_candidates.csv");
+  const table = preferred || fallback;
+  if (!table) return [];
+  return (table.rows || []).slice(0, 8).map((row) => ({
+    stock: row["股票"] || [row["name"], row["code"]].filter(Boolean).join(" ") || "-",
+    sector: row["板块"] || row["匹配板块"] || row["sector"] || "",
+    pct: row["当前涨幅"] || row["当前涨幅%"] || row["pct"] || "",
+    reason: row["走势自然语言"] || row["命中原因"] || row["setup_pass_reasons"] || row["来源"] || "",
+  }));
+}
+
+function renderCandidateItem(item) {
+  return `<strong>${escapeHtml(item.stock)}</strong><span>${escapeHtml([item.sector, item.pct].filter(Boolean).join(" · "))}</span><em>${escapeHtml(item.reason)}</em>`;
 }
 
 function renderPortfolioPriority(item) {
@@ -488,6 +552,7 @@ async function main() {
   siteData = await response.json();
   document.getElementById("generated-at").textContent = siteData.generated_at || "-";
   setupDateSelector();
+  setupViewTabs();
   setupPortfolio();
   setupMarkdown();
   renderWeekly(siteData.latest_weekly);

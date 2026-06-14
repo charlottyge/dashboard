@@ -206,7 +206,8 @@ input {
   flex-wrap: wrap;
 }
 
-.quick-nav a {
+.quick-nav a,
+.view-tab {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -216,6 +217,26 @@ input {
   color: var(--ink);
   background: #fff;
   text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.view-tab.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: #0b5f59;
+}
+
+.app-view {
+  display: none;
+}
+
+.app-view.active {
+  display: block;
+}
+
+.metric-grid.app-view.active {
+  display: grid;
 }
 
 .checkpoint-tabs {

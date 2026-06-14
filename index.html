@@ -25,17 +25,19 @@
           交易日
           <select id="date-select"></select>
         </label>
-        <div class="quick-nav">
-          <a href="#timeline">盘中时间轴</a>
-          <a href="#portfolio">持仓管理</a>
-          <a href="#markdown">Markdown</a>
-          <a href="#weekly">周度雷达</a>
+        <div class="quick-nav" id="app-nav">
+          <button class="view-tab active" data-view="radar">盘中雷达</button>
+          <button class="view-tab" data-view="tables">数据表</button>
+          <button class="view-tab" data-view="portfolio">持仓管理</button>
+          <button class="view-tab" data-view="markdown">Markdown</button>
+          <button class="view-tab" data-view="weekly">周度雷达</button>
+          <button class="view-tab" data-view="files">导出文件</button>
         </div>
       </section>
 
-      <section class="metric-grid" id="metrics"></section>
+      <section class="metric-grid app-view active" id="view-radar-metrics" data-view-panel="radar"></section>
 
-      <section id="timeline" class="section">
+      <section id="timeline" class="section app-view active" data-view-panel="radar">
         <div class="section-title">
           <div>
             <h2>盘中时间轴</h2>
@@ -46,7 +48,17 @@
         <div id="checkpoint-detail" class="checkpoint-detail"></div>
       </section>
 
-      <section id="portfolio" class="section">
+      <section id="tables" class="section app-view" data-view-panel="tables">
+        <div class="section-title">
+          <div>
+            <h2>数据表</h2>
+            <p id="tables-subtitle">当前 checkpoint 的原始输出表。</p>
+          </div>
+        </div>
+        <div id="checkpoint-tables" class="table-stack"></div>
+      </section>
+
+      <section id="portfolio" class="section app-view" data-view-panel="portfolio">
         <div class="section-title">
           <div>
             <h2>持仓管理</h2>
@@ -65,7 +77,7 @@
         <div id="portfolio-table" class="table-stack"></div>
       </section>
 
-      <section id="markdown" class="section">
+      <section id="markdown" class="section app-view" data-view-panel="markdown">
         <div class="section-title">
           <div>
             <h2>Markdown 管理</h2>
@@ -88,7 +100,7 @@
         </div>
       </section>
 
-      <section id="weekly" class="section">
+      <section id="weekly" class="section app-view" data-view-panel="weekly">
         <div class="section-title">
           <div>
             <h2>周度板块轮动</h2>
@@ -99,7 +111,7 @@
         <article id="weekly-preview" class="report-preview"></article>
       </section>
 
-      <section class="section">
+      <section class="section app-view" data-view-panel="files">
         <div class="section-title">
           <div>
             <h2>最近导出文件</h2>
