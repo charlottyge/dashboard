@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A 股研究工具台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">A</div>
+        <div>
+          <h1>A 股研究工具台</h1>
+          <p>盘中扫描 / 策略包 / 周末轮动</p>
+        </div>
+      </div>
+      <nav>
+        <button class="nav active" data-view="intraday">盘中决策</button>
+        <button class="nav" data-view="strategy">策略包扫描</button>
+        <button class="nav" data-view="weekly">周末板块轮动</button>
+        <button class="nav" data-view="reports">报告中心</button>
+        <button class="nav" data-view="settings">迁移与配置</button>
+      </nav>
+      <div class="status-pill" id="status-pill">检查中</div>
+    </aside>
+
+    <main>
+      <section class="topbar">
+        <div>
+          <h2 id="view-title">盘中决策</h2>
+          <p id="view-subtitle">按 checkpoint 运行市场扫描、候选股和持仓/观察池处理。</p>
+        </div>
+        <button id="refresh-reports" class="ghost">刷新报告</button>
+      </section>
+
+      <section id="view-intraday" class="view active">
+        <div class="panel">
+          <h3>运行 checkpoint</h3>
+          <div class="form-grid">
+            <label>交易日 <input id="intraday-date" type="date" /></label>
+            <label>checkpoint
+              <select id="intraday-checkpoint">
+                <option value="09:25">09:25 集合竞价</option>
+                <option value="09:45">09:45 开盘冲击</option>
+                <option value="10:30" selected>10:30 主扫描</option>
+                <option value="11:20">11:20 午前确认</option>
+                <option value="13:30">13:30 午后确认</option>
+                <option value="14:30">14:30 尾盘确认</option>
+                <option value="15:10">15:10 收盘复盘</option>
+              </select>
+            </label>
+            <label>股票池
+              <select id="intraday-pool">
+                <option value="all-a">全 A</option>
+                <option value="watchlist">观察池</option>
+              </select>
+            </label>
+            <label>测试限制 <input id="intraday-limit" type="number" min="0" placeholder="0 = 不限制" /></label>
+          </div>
+          <button id="run-intraday" class="primary">运行盘中扫描</button>
+        </div>
+      </section>
+
+      <section id="view-strategy" class="view">
+        <div class="panel">
+          <h3>运行策略包</h3>
+          <div class="form-grid">
+            <label>交易日 <input id="strategy-date" type="date" /></label>
+            <label>checkpoint <input id="strategy-checkpoint" value="14:20" /></label>
+            <label>流通股上限 <input id="strategy-float" type="number" value="500000000" /></label>
+            <label>测试限制 <input id="strategy-limit" type="number" min="0" placeholder="0 = 不限制" /></label>
+          </div>
+          <button id="run-strategy" class="primary">运行策略包</button>
+        </div>
+      </section>
+
+      <section id="view-weekly" class="view">
+        <div class="panel">
+          <h3>生成周末板块轮动报告</h3>
+          <div class="form-grid">
+            <label>数据截止日 <input id="weekly-date" type="date" /></label>
+            <label class="check"><input id="weekly-force" type="checkbox" /> 强制刷新远程数据</label>
+            <label class="check"><input id="weekly-skip-daily" type="checkbox" /> 跳过日频窗口抓取</label>
+          </div>
+          <button id="run-weekly" class="primary">生成周报</button>
+        </div>
+      </section>
+
+      <section id="view-reports" class="view">
+        <div class="split">
+          <div class="panel">
+            <h3>最近文件</h3>
+            <div id="report-list" class="file-list"></div>
+          </div>
+          <div class="panel preview-panel">
+            <h3>预览</h3>
+            <div id="preview" class="preview">选择左侧文件查看。</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <div class="panel">
+          <h3>迁移说明</h3>
+          <div class="commands">
+            <p>启动工具：<code>./start.sh</code></p>
+            <p>备份配置与报告：<code>./scripts/backup.sh</code></p>
+            <p>在新电脑恢复：<code>./scripts/restore.sh /path/to/backup.tar.gz</code></p>
+          </div>
+          <div id="settings-status"></div>
+        </div>
+      </section>
+
+      <section class="panel job-panel">
+        <div class="job-header">
+          <h3>任务输出</h3>
+          <button id="clear-output" class="ghost">清空</button>
+        </div>
+        <pre id="job-output">尚未运行任务。</pre>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

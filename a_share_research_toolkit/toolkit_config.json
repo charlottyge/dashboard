@@ -1,0 +1,5 @@
+{
+  "intraday_python": "python3",
+  "investment_dir": "tool/cloud_inputs",
+  "intraday_export_root": "tool/intraday_exports"
+}

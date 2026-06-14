@@ -1,0 +1,16 @@
+{
+  "source": "/Users/char/Library/Mobile Documents/com~apple~CloudDocs/Obsidian Vault/investment/portfolio.md",
+  "modified": "2026-06-11T09:31:34",
+  "latest_date": "2026-06-08",
+  "base_holdings": [
+    {
+      "code": "300433",
+      "name": "蓝思科技",
+      "shares_total": "1500",
+      "avg_cost": "45.333",
+      "current_snapshot": "41.18",
+      "shares_added_recently": "",
+      "last_add_price": ""
+    }
+  ]
+}
