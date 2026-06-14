@@ -2,7 +2,8 @@ name: Run intraday dashboard
 
 on:
   schedule:
-    # Beijing time: 09:25, 09:45, 10:30, 11:20, 13:30, 14:30, 15:10
+    # Beijing time: 09:10 preopen, then 09:25, 09:45, 10:30, 11:20, 13:30, 14:30, 15:10
+    - cron: "10 1 * * 1-5"
     - cron: "25 1 * * 1-5"
     - cron: "45 1 * * 1-5"
     - cron: "30 2 * * 1-5"
@@ -18,6 +19,7 @@ on:
         default: "10:30"
         type: choice
         options:
+          - "preopen"
           - "09:25"
           - "09:45"
           - "10:30"
@@ -82,7 +84,9 @@ jobs:
             REPORT_DATE=""
             LIMIT="0"
             HM="$(TZ=Asia/Shanghai date +%H%M)"
-            if [ "$HM" -lt 940 ]; then
+            if [ "$HM" -lt 920 ]; then
+              CHECKPOINT="preopen"
+            elif [ "$HM" -lt 940 ]; then
               CHECKPOINT="09:25"
             elif [ "$HM" -lt 1015 ]; then
               CHECKPOINT="09:45"
@@ -114,7 +118,9 @@ jobs:
           if [ "$RUN_LIMIT" != "0" ] && [ -n "$RUN_LIMIT" ]; then
             LIMIT_ARG="--limit $RUN_LIMIT"
           fi
-          if [ "$RUN_STRATEGY" = "true" ]; then
+          if [ "$RUN_CHECKPOINT" = "preopen" ]; then
+            python3 a_share_research_toolkit/scripts/run_intraday_and_publish.py --skip-scan $DATE_ARG $LIMIT_ARG --no-push
+          elif [ "$RUN_STRATEGY" = "true" ]; then
             python3 a_share_research_toolkit/scripts/run_intraday_and_publish.py --strategy $DATE_ARG $LIMIT_ARG --no-push
           else
             python3 a_share_research_toolkit/scripts/run_intraday_and_publish.py --checkpoint "$RUN_CHECKPOINT" $DATE_ARG $LIMIT_ARG --no-push
