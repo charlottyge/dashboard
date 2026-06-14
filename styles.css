@@ -408,6 +408,62 @@ input {
   line-height: 1.6;
 }
 
+.ai-analysis-card {
+  border-color: #9ccdc5;
+  background: #fbfefd;
+}
+
+.ai-analysis-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ai-analysis-head span {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ai-analysis-head em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.ai-analysis-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.ai-analysis-body section {
+  border-left: 3px solid #b9d9d3;
+  padding-left: 10px;
+}
+
+.ai-analysis-body h4 {
+  margin-bottom: 5px;
+  color: #0f766e;
+  font-size: 14px;
+}
+
+.ai-analysis-body p,
+.ai-analysis-body li {
+  color: #33454d;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.ai-analysis-body ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
 .brief-conclusion {
   border-color: #b9d9d3;
   background: #f4fbf9;

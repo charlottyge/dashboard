@@ -503,6 +503,13 @@ def parse_portfolio_markdown(path: Path) -> dict[str, dict[str, Any]]:
         return {}
     text = path.read_text(encoding="utf-8")
     known_codes = {
+        "长盈通": "688143",
+        "埃斯顿": "002747",
+        "雷曼光电": "300162",
+        "中科创达": "300496",
+        "南大光电": "300346",
+        "彩虹股份": "600707",
+        "彩虹集团": "600707",
         "天赐材料": "002709",
         "云南锗业": "002428",
         "中天科技": "600522",

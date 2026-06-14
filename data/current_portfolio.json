@@ -4,11 +4,65 @@
   "latest_date": "2026-06-08",
   "base_holdings": [
     {
+      "code": "002747",
+      "name": "埃斯顿",
+      "shares_total": "500",
+      "avg_cost": "16.026",
+      "current_snapshot": "35.8",
+      "shares_added_recently": "",
+      "last_add_price": ""
+    },
+    {
+      "code": "300162",
+      "name": "雷曼光电",
+      "shares_total": "4400",
+      "avg_cost": "11.148",
+      "current_snapshot": "10.8",
+      "shares_added_recently": "",
+      "last_add_price": ""
+    },
+    {
+      "code": "300346",
+      "name": "南大光电",
+      "shares_total": "500",
+      "avg_cost": "62.338",
+      "current_snapshot": "61.72",
+      "shares_added_recently": "",
+      "last_add_price": ""
+    },
+    {
       "code": "300433",
       "name": "蓝思科技",
       "shares_total": "1500",
       "avg_cost": "45.333",
       "current_snapshot": "41.18",
+      "shares_added_recently": "",
+      "last_add_price": ""
+    },
+    {
+      "code": "300496",
+      "name": "中科创达",
+      "shares_total": "800",
+      "avg_cost": "64.518",
+      "current_snapshot": "62.39",
+      "shares_added_recently": "",
+      "last_add_price": ""
+    },
+    {
+      "code": "600707",
+      "name": "彩虹股份",
+      "shares_total": "2000",
+      "avg_cost": "12.41",
+      "current_snapshot": "11.33",
+      "shares_added_recently": "",
+      "last_add_price": ""
+    },
+    {
+      "code": "688143",
+      "name": "长盈通",
+      "shares_total": "237",
+      "avg_cost": "164.146",
+      "current_snapshot": "191.24",
       "shares_added_recently": "",
       "last_add_price": ""
     }

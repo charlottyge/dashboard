@@ -153,6 +153,7 @@ function renderActionBrief(checkpoint) {
       <div class="brief-kicker">${escapeHtml(checkpoint.label)}</div>
       <div class="overview-grid">
         ${renderMarketOverviewCard(checkpoint, decision, demo)}
+        ${renderAiAnalysisCard(checkpoint)}
         ${renderSectorOverviewCard(checkpoint)}
         ${renderPortfolioOverviewCard(checkpoint)}
         ${renderWatchlistOverviewCard(checkpoint)}
@@ -185,6 +186,50 @@ function renderMarketOverviewCard(checkpoint, decision, demo) {
       ${renderMarketSnapshot(checkpoint)}
       ${renderAnalysisMarkdown(analysisTextForCheckpoint(checkpoint, decision, demo))}
     </article>
+  `;
+}
+
+function renderAiAnalysisCard(checkpoint) {
+  const analysis = checkpoint.ai_analysis || {};
+  if (!Object.keys(analysis).length) return "";
+  const sections = [
+    ["盘面核心判断", analysis.summary || analysis.market_analysis],
+    ["指数与赚钱效应", analysis.index_breadth_analysis],
+    ["板块主线质量", analysis.sector_analysis],
+    ["持仓分析", analysis.portfolio_analysis],
+    ["Watchlist 分析", analysis.watchlist_analysis],
+    ["新增候选分析", analysis.candidate_analysis],
+  ].filter(([, text]) => text);
+  return `
+    <article class="overview-card overview-card-wide ai-analysis-card">
+      <div class="ai-analysis-head">
+        <span>AI 深度分析</span>
+        ${analysis.generated_at ? `<em>${escapeHtml(analysis.generated_at)}</em>` : ""}
+      </div>
+      <h3>${escapeHtml(analysis.headline || "本时段深度分析")}</h3>
+      <div class="ai-analysis-body">
+        ${sections.map(([title, text]) => `
+          <section>
+            <h4>${escapeHtml(title)}</h4>
+            <p>${escapeHtml(text)}</p>
+          </section>
+        `).join("")}
+        ${renderAiAnalysisList("风险提醒", analysis.risk_warnings)}
+        ${renderAiAnalysisList("下一步验证", analysis.next_validation)}
+        ${renderAiAnalysisList("不要做什么", analysis.do_not_do)}
+      </div>
+    </article>
+  `;
+}
+
+function renderAiAnalysisList(title, items) {
+  const safeItems = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!safeItems.length) return "";
+  return `
+    <section>
+      <h4>${escapeHtml(title)}</h4>
+      <ol>${safeItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>
+    </section>
   `;
 }
 
@@ -1784,7 +1829,9 @@ function saveLocalHoldings(rows) {
 }
 
 function mergedHoldings() {
-  const base = (siteData.portfolio?.base_holdings || []).map((row) => ({ ...row, source: "portfolio.md" }));
+  const historyRows = activeDay?.date ? siteData.portfolio_history?.[activeDay.date]?.base_holdings : null;
+  const baseRows = historyRows?.length ? historyRows : siteData.portfolio?.base_holdings || [];
+  const base = baseRows.map((row) => ({ ...row, source: row.source || "portfolio.md" }));
   const local = localHoldings().map((row) => ({ ...row, source: "前端保存" }));
   const byCode = new Map();
   for (const row of base) byCode.set(String(row.code || row.name), row);

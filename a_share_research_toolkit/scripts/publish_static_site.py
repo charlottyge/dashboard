@@ -27,7 +27,7 @@ DEFAULT_WATCHLIST_MD = DEFAULT_INVESTMENT_DIR / "watchlist.md"
 CSV_PREVIEW_ROWS = 40
 CANDIDATE_PREVIEW_ROWS = 500
 REPORT_PREVIEW_CHARS = 32000
-DEMO_DAY = "2026-06-03"
+DEMO_DAY = "2026-06-09"
 CHECKPOINT_ORDER = {
     "scan_0925": 925,
     "scan_0945": 945,
@@ -94,6 +94,17 @@ CHECKPOINT_IO = {
         "output": ["final_stocks.csv", "final_sectors.csv", "portfolio_final_review.csv"],
         "goal": "保存当天学习样本和明日计划：哪些继续看，哪些只是情绪温度计，哪些进入风险复盘。",
     },
+}
+
+PORTFOLIO_CODE_MAP = {
+    "长盈通": "688143",
+    "埃斯顿": "002747",
+    "雷曼光电": "300162",
+    "蓝思科技": "300433",
+    "中科创达": "300496",
+    "彩虹股份": "600707",
+    "彩虹集团": "600707",
+    "南大光电": "300346",
 }
 
 
@@ -237,6 +248,7 @@ def build_checkpoint_packet(directory: Path) -> dict:
     decision = read_json(directory / "checkpoint_decision_summary.json") if (directory / "checkpoint_decision_summary.json").exists() else {}
     if not decision:
         decision = synthesize_decision(directory, summary, table_map)
+    ai_analysis = read_json(directory / "ai_analysis.json") if (directory / "ai_analysis.json").exists() else {}
     return {
         "id": directory.name,
         "label": checkpoint_label(directory.name, summary),
@@ -245,6 +257,7 @@ def build_checkpoint_packet(directory: Path) -> dict:
         "summary": summary,
         "decision": decision,
         "demo_analysis": build_demo_analysis(directory, summary, tables),
+        "ai_analysis": ai_analysis,
         "tables": tables,
     }
 
@@ -634,6 +647,60 @@ def load_portfolio() -> dict:
     return result
 
 
+def load_portfolio_history() -> dict:
+    if not DEFAULT_PORTFOLIO_MD.exists():
+        return {}
+    text = DEFAULT_PORTFOLIO_MD.read_text(encoding="utf-8", errors="replace")
+    current_year = "2026"
+    history: dict[str, dict] = {}
+    in_holdings = False
+    header: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        year_match = __import__("re").search(r"(20\d{2})", line)
+        if line.startswith("#") and year_match:
+            current_year = year_match.group(1)
+        if line.startswith("## Holdings"):
+            in_holdings = True
+            continue
+        if in_holdings and line.startswith("## ") and not line.startswith("## Holdings"):
+            in_holdings = False
+        if not in_holdings or not line.startswith("|") or "---" in line:
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if any(cell.lower() == "date" for cell in cells):
+            header = cells
+            continue
+        if not cells or not header:
+            continue
+        row = {header[index]: cells[index] if index < len(cells) else "" for index in range(len(header))}
+        date_text = row.get("Date") or cells[0]
+        date_match = __import__("re").search(r"(\d{1,2})[./-](\d{1,2})", date_text)
+        if not date_match:
+            continue
+        date_key = f"{current_year}-{int(date_match.group(1)):02d}-{int(date_match.group(2)):02d}"
+        name = (row.get("Ticker") or "").strip()
+        code_match = __import__("re").search(r"\b(\d{6})\b", name)
+        code = code_match.group(1) if code_match else PORTFOLIO_CODE_MAP.get(name, "")
+        name = __import__("re").sub(r"`?\d{6}`?", "", name).strip()
+        if not name:
+            continue
+        history.setdefault(date_key, {"latest_date": date_key, "base_holdings": []})
+        history[date_key]["base_holdings"].append(
+            {
+                "code": code,
+                "name": name,
+                "shares_total": row.get("Shares", ""),
+                "avg_cost": row.get("Avg Cost", ""),
+                "current_snapshot": row.get("Current", ""),
+                "return": row.get("Return", ""),
+                "total": row.get("Total", ""),
+                "source": "portfolio.md",
+            }
+        )
+    return history
+
+
 def _cached_current(filename: str, key: str) -> dict:
     current_path = DATA_ROOT / filename
     if current_path.exists():
@@ -675,6 +742,7 @@ def build_payload() -> dict:
     strategy_summary = read_json(latest_strategy_dir / "summary.json") if latest_strategy_dir else {}
     watchlist = load_watchlist()
     portfolio = load_portfolio()
+    portfolio_history = load_portfolio_history()
     (DATA_ROOT / "current_watchlist.json").write_text(json.dumps(watchlist, ensure_ascii=False, indent=2), encoding="utf-8")
     (DATA_ROOT / "current_portfolio.json").write_text(json.dumps(portfolio, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -713,6 +781,7 @@ def build_payload() -> dict:
         "timeline_days": scan_dirs_by_day(),
         "watchlist": watchlist,
         "portfolio": portfolio,
+        "portfolio_history": portfolio_history,
         "recent_exports": list_recent_exports(),
     }
 
