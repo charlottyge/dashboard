@@ -1,0 +1,80 @@
+name: Run intraday dashboard
+
+on:
+  workflow_dispatch:
+    inputs:
+      checkpoint:
+        description: "Checkpoint to run"
+        required: true
+        default: "10:30"
+        type: choice
+        options:
+          - "09:25"
+          - "09:45"
+          - "10:30"
+          - "11:20"
+          - "13:30"
+          - "14:30"
+          - "15:10"
+      strategy:
+        description: "Run strategy package only"
+        required: true
+        default: false
+        type: boolean
+      report_date:
+        description: "Report date, leave blank for today"
+        required: false
+        default: ""
+      limit:
+        description: "Optional symbol limit for testing, 0 means full scan"
+        required: false
+        default: "0"
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Prepare cached watchlist and portfolio
+        run: python3 a_share_research_toolkit/scripts/prepare_cloud_inputs.py
+
+      - name: Run checkpoint and publish
+        env:
+          INPUT_CHECKPOINT: ${{ inputs.checkpoint }}
+          INPUT_STRATEGY: ${{ inputs.strategy }}
+          INPUT_DATE: ${{ inputs.report_date }}
+          INPUT_LIMIT: ${{ inputs.limit }}
+        run: |
+          DATE_ARG=""
+          if [ -n "$INPUT_DATE" ]; then
+            DATE_ARG="--date $INPUT_DATE"
+          fi
+          LIMIT_ARG=""
+          if [ "$INPUT_LIMIT" != "0" ] && [ -n "$INPUT_LIMIT" ]; then
+            LIMIT_ARG="--limit $INPUT_LIMIT"
+          fi
+          if [ "$INPUT_STRATEGY" = "true" ]; then
+            python3 a_share_research_toolkit/scripts/run_intraday_and_publish.py --strategy $DATE_ARG $LIMIT_ARG --no-push
+          else
+            python3 a_share_research_toolkit/scripts/run_intraday_and_publish.py --checkpoint "$INPUT_CHECKPOINT" $DATE_ARG $LIMIT_ARG --no-push
+          fi
+
+      - name: Push dashboard update
+        run: git push origin main
