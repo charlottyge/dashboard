@@ -7,34 +7,27 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <header class="masthead">
-      <div>
-        <p class="eyebrow">A 股盘中分析雷达</p>
-        <h1>按 checkpoint 展示市场、主线、候选和持仓处理</h1>
-        <p class="summary">每次本地跑完扫描后发布静态数据，GitHub Pages 页面会读取最新 JSON 展示结果。</p>
+    <aside class="sidebar">
+      <div class="brand">
+        <strong>A 股盘中雷达</strong>
+        <span id="generated-at">读取中</span>
       </div>
-      <div class="stamp">
-        <span>静态数据更新时间</span>
-        <strong id="generated-at">读取中</strong>
-      </div>
-    </header>
+      <label class="date-picker">
+        交易日
+        <select id="date-select"></select>
+      </label>
+      <nav id="app-nav" class="side-nav">
+        <button class="view-tab active" data-view="radar">盘中雷达</button>
+        <button class="view-tab" data-view="tables">数据表</button>
+        <button class="view-tab" data-view="portfolio">持仓管理</button>
+        <button class="view-tab" data-view="markdown">Markdown</button>
+        <button class="view-tab" data-view="weekly">周度雷达</button>
+        <button class="view-tab" data-view="files">导出文件</button>
+      </nav>
+      <p class="sidebar-note">研究辅助工具，不构成投资建议。</p>
+    </aside>
 
-    <main>
-      <section class="control-band">
-        <label>
-          交易日
-          <select id="date-select"></select>
-        </label>
-        <div class="quick-nav" id="app-nav">
-          <button class="view-tab active" data-view="radar">盘中雷达</button>
-          <button class="view-tab" data-view="tables">数据表</button>
-          <button class="view-tab" data-view="portfolio">持仓管理</button>
-          <button class="view-tab" data-view="markdown">Markdown</button>
-          <button class="view-tab" data-view="weekly">周度雷达</button>
-          <button class="view-tab" data-view="files">导出文件</button>
-        </div>
-      </section>
-
+    <main class="content">
       <section class="metric-grid app-view active" id="view-radar-metrics" data-view-panel="radar"></section>
 
       <section id="timeline" class="section app-view active" data-view-panel="radar">
@@ -121,10 +114,6 @@
         <div id="recent-files" class="file-list"></div>
       </section>
     </main>
-
-    <footer>
-      <p>研究辅助工具，不构成投资建议。公开数据源可能延迟、缺失或字段变化。</p>
-    </footer>
 
     <script src="./app.js"></script>
   </body>

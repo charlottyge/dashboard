@@ -57,6 +57,10 @@ function tableTitle(table) {
   return tableLabels[key] || table.name;
 }
 
+function byId(id) {
+  return document.getElementById(id);
+}
+
 function renderMetrics(day) {
   const checkpoints = day?.checkpoints || [];
   const latest = checkpoints[checkpoints.length - 1] || {};
@@ -68,7 +72,9 @@ function renderMetrics(day) {
     ["风险偏好", value(decision.risk_preference), p0 ? `${p0} 个 P0 持仓优先处理` : "无 P0 持仓"],
     ["数据错误", value(latest.summary?.error_count || 0), "来自最新 checkpoint summary"],
   ];
-  document.getElementById("view-radar-metrics").innerHTML = metrics
+  const target = byId("view-radar-metrics") || byId("metrics");
+  if (!target) return;
+  target.innerHTML = metrics
     .map(
       ([label, number, note]) => `
         <div class="metric">
@@ -82,7 +88,8 @@ function renderMetrics(day) {
 }
 
 function setupDateSelector() {
-  const select = document.getElementById("date-select");
+  const select = byId("date-select");
+  if (!select) return;
   const days = siteData.timeline_days || [];
   select.innerHTML = days.map((day) => `<option value="${escapeHtml(day.date)}">${escapeHtml(day.date)}</option>`).join("");
   select.addEventListener("change", () => selectDay(select.value));
@@ -117,10 +124,15 @@ function selectDay(date) {
 
 function renderTimeline() {
   const checkpoints = activeDay?.checkpoints || [];
-  document.getElementById("timeline-subtitle").textContent = activeDay
-    ? `${activeDay.date} · ${checkpoints.length} 个 checkpoint`
-    : "没有可展示的 checkpoint。";
-  document.getElementById("checkpoint-tabs").innerHTML = checkpoints
+  const subtitle = byId("timeline-subtitle");
+  if (subtitle) {
+    subtitle.textContent = activeDay
+      ? `${activeDay.date} · ${checkpoints.length} 个 checkpoint`
+      : "没有可展示的 checkpoint。";
+  }
+  const tabs = byId("checkpoint-tabs");
+  if (!tabs) return;
+  tabs.innerHTML = checkpoints
     .map(
       (item) => `
         <button class="checkpoint-tab ${item.id === activeCheckpointId ? "active" : ""}" data-id="${escapeHtml(item.id)}">
@@ -141,30 +153,52 @@ function renderTimeline() {
 }
 
 function renderCheckpoint(checkpoint) {
-  const target = document.getElementById("checkpoint-detail");
+  const target = byId("checkpoint-detail");
+  if (!target) return;
   if (!checkpoint) {
     target.innerHTML = '<p class="empty">当前日期没有扫描结果。</p>';
     return;
   }
   const decision = checkpoint.decision || {};
   target.innerHTML = `
-    <div class="decision-layout">
-      <section class="decision-main">
-        <div class="state-line">
-          <span>${escapeHtml(checkpoint.label)}</span>
-          <strong>${escapeHtml(value(decision.market_state, "暂无市场状态"))}</strong>
-          <small>${escapeHtml(checkpoint.directory)}</small>
-        </div>
-        <div class="pill-row">
-          <span class="pill">风险偏好：${escapeHtml(value(decision.risk_preference))}</span>
-          <span class="pill">fallback：${escapeHtml(decision.data_quality?.fallback_used ? "是" : "否")}</span>
-          <span class="pill">错误：${escapeHtml(value(decision.data_quality?.error_count || checkpoint.summary?.error_count || 0))}</span>
-        </div>
-        ${renderDecisionLists(decision)}
-      </section>
-    </div>
+    ${renderActionBrief(checkpoint)}
+    ${renderCandidateDashboard(checkpoint)}
   `;
   renderCheckpointTables(checkpoint);
+}
+
+function renderActionBrief(checkpoint) {
+  const decision = checkpoint.decision || {};
+  return `
+    <section class="brief brief-conclusion">
+      <div class="brief-kicker">${escapeHtml(checkpoint.label)}</div>
+      <h2>${escapeHtml(conclusionTitle(decision))}</h2>
+      <p>${escapeHtml(conclusionText(decision))}</p>
+      <div class="pill-row">
+        <span class="pill">风险偏好：${escapeHtml(value(decision.risk_preference))}</span>
+        <span class="pill">主线状态：${escapeHtml(mainlineState(decision))}</span>
+        <span class="pill">操作倾向：${escapeHtml(actionBias(decision))}</span>
+      </div>
+    </section>
+    <div class="brief-two-col">
+      <section class="brief">
+        <h3>现在最该看</h3>
+        ${renderFocusList(decision)}
+      </section>
+      <section class="brief brief-risk">
+        <h3>风险提醒 / 持仓优先级</h3>
+        ${renderPortfolioBrief(decision)}
+      </section>
+    </div>
+    <section class="brief">
+      <h3>主线状态</h3>
+      ${renderMainlineGroups(decision)}
+    </section>
+    <section class="brief">
+      <h3>下一步观察</h3>
+      ${renderNextWatch(decision)}
+    </section>
+  `;
 }
 
 function renderDecisionLists(decision) {
@@ -174,11 +208,147 @@ function renderDecisionLists(decision) {
       ${renderItemList("确认主线", decision.confirmed_mainlines, renderLineItem)}
       ${renderItemList("走弱方向", decision.weakening_mainlines, renderLineItem)}
       ${renderItemList("新改善方向", decision.new_improving_lines, renderLineItem)}
-      ${renderItemList("第一轮冲击候选", firstImpactCandidates(), renderCandidateItem)}
       ${renderItemList("持仓优先级", decision.portfolio_priority, renderPortfolioPriority)}
       ${renderItemList("下一 checkpoint 看什么", decision.next_checkpoint_watch, renderWatchItem)}
     </div>
   `;
+}
+
+function conclusionTitle(decision) {
+  return `当前盘面：${value(decision.market_state, "暂无清晰主线")}`;
+}
+
+function conclusionText(decision) {
+  const focus = (decision.confirmed_mainlines || []).slice(0, 3).map((item) => item.name);
+  const weak = (decision.weakening_mainlines || []).slice(0, 3).map((item) => item.name);
+  const parts = [];
+  if (focus.length) parts.push(`${focus.join("、")}仍在前排，但需要看结构和中军承接。`);
+  if (weak.length) parts.push(`${weak.join("、")}走弱或反抽失败，暂时不要当主攻。`);
+  if (!parts.length) parts.push("当前没有足够明确的主线，先等下一 checkpoint 的排名、VWAP 和持仓风险信号。");
+  parts.push(actionBias(decision) === "等确认" ? "当前适合观察承接，不适合盲目追涨。" : "当前可以继续跟踪强线，但仍以证伪条件为准。");
+  return parts.join("");
+}
+
+function mainlineState(decision) {
+  if ((decision.confirmed_mainlines || []).length && (decision.weakening_mainlines || []).length) return "分化";
+  if ((decision.confirmed_mainlines || []).length) return "延续";
+  if ((decision.new_improving_lines || []).length) return "切换观察";
+  if ((decision.weakening_mainlines || []).length) return "走弱";
+  return "不明朗";
+}
+
+function actionBias(decision) {
+  if (decision.risk_preference === "低") return "等确认";
+  if ((decision.do_not_chase || []).length >= 3) return "不追高";
+  if ((decision.confirmed_mainlines || []).length) return "看承接";
+  return "等待";
+}
+
+function renderFocusList(decision) {
+  const items = (decision.confirmed_mainlines || []).slice(0, 5);
+  if (!items.length) return '<p class="muted">暂无优先方向。</p>';
+  return `<ol class="brief-list">${items.map((item) => `<li>${renderHumanLine(item, "focus")}</li>`).join("")}</ol>`;
+}
+
+function renderHumanLine(item, mode) {
+  const label = humanStage(item);
+  const explanation = lineExplanation(item, mode);
+  const watch = lineWatch(item);
+  return `
+    <strong>${escapeHtml(item.name)}</strong>
+    <span>${escapeHtml(label)}</span>
+    <p>${escapeHtml(explanation)}</p>
+    <em>看什么：${escapeHtml(watch)}</em>
+  `;
+}
+
+function humanStage(item) {
+  const map = {
+    mainline_candidate: "主线候选",
+    confirming: "确认中",
+    high_crowding: "拥挤偏高",
+    two_day_acceleration: "连续加速",
+    rebound_only: "仅反抽",
+    late_diffusion: "末端扩散",
+    temperature_indicator: "温度计",
+    defense_failed: "防守失效",
+    downgraded: "已降级",
+    watch: "观察",
+  };
+  const stage = map[item.stage] || item.stage || "观察";
+  const structure = item.structure_state ? ` / ${item.structure_state}` : "";
+  return `${stage}${structure}`;
+}
+
+function lineExplanation(item, mode) {
+  if (mode === "weak") {
+    if (item.rebound_type === "failed_rebound") return "旧方向反抽失败，今天不要再当主攻。";
+    return "方向转弱或排名回落，先作为风险/温度计观察。";
+  }
+  if (item.crowding_signal === "high_crowding") return "涨幅或前排热度偏高，不能只看排名追。";
+  if (item.structure_state === "结构待验证") return "排名靠前，但中军、前排、补涨结构还没完全确认。";
+  if (item.structure_state === "结构健康") return "中军、前排和板块宽度较同步，值得继续观察承接。";
+  return "仍在前排，下一步重点看是否能维持排名和 VWAP 承接。";
+}
+
+function lineWatch(item) {
+  if (item.crowding_signal === "high_crowding") return "前排是否冲高回落，中军是否继续站稳 VWAP。";
+  if (item.structure_state === "结构待验证") return "下一 checkpoint 是否仍在前 5/前 10，核心股是否站稳 VWAP。";
+  return "排名不明显掉队，核心股不跌破 VWAP 或上午低点。";
+}
+
+function renderPortfolioBrief(decision) {
+  const items = (decision.portfolio_priority || []).slice(0, 6);
+  if (!items.length) return '<p class="muted">暂无持仓风险优先级。</p>';
+  return `<div class="priority-list">${items.map(renderPriorityCard).join("")}</div>`;
+}
+
+function renderPriorityCard(item) {
+  const isP0 = item.priority === "P0";
+  return `
+    <article class="priority-card ${isP0 ? "p0" : ""}">
+      <strong>${escapeHtml(item.priority)} · ${escapeHtml(item.stock)}</strong>
+      <p>原因：${escapeHtml(item.reason || "触发风险条件")}</p>
+      <p>看什么：${escapeHtml(item.trigger_price || "VWAP / 上午低点 / 所属板块强弱")}</p>
+      <p>动作倾向：${escapeHtml(actionFromPriority(item))}</p>
+    </article>
+  `;
+}
+
+function actionFromPriority(item) {
+  if (item.priority === "P0") return "不补仓，若下一 checkpoint 仍未修复则降风险。";
+  if (item.priority === "P1") return "高优先观察，等关键位或 VWAP 结果。";
+  if (item.priority === "P2") return "正常持有观察，不因单点波动处理。";
+  return "低优先级，暂不处理。";
+}
+
+function renderMainlineGroups(decision) {
+  const strong = (decision.confirmed_mainlines || []).slice(0, 5);
+  const weak = (decision.weakening_mainlines || []).slice(0, 5);
+  const improving = (decision.new_improving_lines || []).slice(0, 5);
+  return `
+    <div class="mainline-groups">
+      ${renderMainlineGroup("仍在走强", strong, "strong")}
+      ${renderMainlineGroup("走弱 / 不再主攻", weak, "weak")}
+      ${renderMainlineGroup("新改善方向", improving, "improving")}
+    </div>
+  `;
+}
+
+function renderMainlineGroup(title, items, mode) {
+  if (!items.length) return `<div class="mainline-group"><h4>${escapeHtml(title)}</h4><p class="muted">暂无。</p></div>`;
+  return `
+    <div class="mainline-group">
+      <h4>${escapeHtml(title)}</h4>
+      <ul>${items.map((item) => `<li>${renderHumanLine(item, mode)}</li>`).join("")}</ul>
+    </div>
+  `;
+}
+
+function renderNextWatch(decision) {
+  const watches = decision.next_checkpoint_watch || [];
+  if (!watches.length) return '<p class="muted">暂无下一步观察。</p>';
+  return `<ol class="next-watch">${watches.slice(0, 6).map((item) => `<li><strong>${escapeHtml(item)}</strong><p>确认：排名维持、核心股站稳 VWAP。证伪：跌出前排、前排冲高回落或持仓风险继续触发。</p></li>`).join("")}</ol>`;
 }
 
 function currentCheckpoint() {
@@ -187,22 +357,102 @@ function currentCheckpoint() {
 }
 
 function renderCheckpointTables(checkpoint) {
-  const target = document.getElementById("checkpoint-tables");
+  const target = byId("checkpoint-tables");
   if (!target) return;
-  document.getElementById("tables-subtitle").textContent = checkpoint
-    ? `${checkpoint.label} · ${checkpoint.directory}`
-    : "当前 checkpoint 的原始输出表。";
+  const subtitle = byId("tables-subtitle");
+  if (subtitle) {
+    subtitle.textContent = checkpoint
+      ? `${checkpoint.label} · ${checkpoint.directory}`
+      : "当前 checkpoint 的原始输出表。";
+  }
   target.innerHTML = checkpoint ? (checkpoint.tables || []).map(renderTable).join("") : '<p class="empty">暂无数据表。</p>';
 }
 
 function buildMarketEmotionItems(decision) {
+  const checkpoint = currentCheckpoint();
+  const market = firstTableRow(checkpoint, "market_overview.csv");
+  const sectors = tableRows(checkpoint, "market_sector_scan.csv");
+  const amount = market["成交额预估"] || market["成交额"] || market["market_amount"] || "";
+  const upDown = market["涨跌家数"] || market["up_down_count"] || "";
+  const limit = market["涨停/跌停"] || market["limit_up_down_count"] || "";
+  const pctParts = [
+    market["上证"] ? `上证 ${market["上证"]}%` : "",
+    market["创业板"] ? `创业板 ${market["创业板"]}%` : "",
+    market["科创50"] ? `科创50 ${market["科创50"]}%` : "",
+    market["指数涨幅"] ? `指数 ${market["指数涨幅"]}%` : "",
+  ].filter(Boolean);
+  const sectorDistribution = summarizeSectorDistribution(sectors);
+  const score = marketEmotionScore({ pctParts, amount, upDown, limit, sectors, decision });
   const quality = decision.data_quality || {};
   return [
     { label: "市场状态", value: value(decision.market_state, "暂无") },
+    { label: "市场涨幅", value: pctParts.join(" / ") || "-" },
+    { label: "成交量", value: amount ? `${formatAmount(amount)} · ${amountPulse(amount)}` : "-" },
+    { label: "涨跌数量", value: upDown || "-" },
+    { label: "涨停 / 跌停", value: limit || "-" },
+    { label: "市场情绪评分", value: score },
+    { label: "市场板块分布", value: sectorDistribution },
     { label: "风险偏好", value: value(decision.risk_preference, "暂无") },
     { label: "数据质量", value: quality.fallback_used ? "部分 fallback" : "正常" },
-    { label: "错误记录", value: value(quality.error_count, 0) },
   ];
+}
+
+function firstTableRow(checkpoint, tableName) {
+  return tableRows(checkpoint, tableName)[0] || {};
+}
+
+function tableRows(checkpoint, tableName) {
+  const table = (checkpoint?.tables || []).find((item) => item.name === tableName);
+  return table?.rows || [];
+}
+
+function summarizeSectorDistribution(rows) {
+  if (!rows.length) return "-";
+  const top = rows.slice(0, 5).map((row) => {
+    const name = row["板块"] || row["sector"] || "-";
+    const pct = row["涨幅"] || row["板块涨幅"] || "";
+    return pct === "" ? name : `${name} ${pct}%`;
+  });
+  return top.join(" / ");
+}
+
+function marketEmotionScore({ upDown, limit, sectors, decision }) {
+  let score = 50;
+  const [up, down] = parsePair(upDown);
+  const [limitUp, limitDown] = parsePair(limit);
+  if (up + down > 0) score += ((up - down) / (up + down)) * 25;
+  score += Math.min(limitUp, 80) * 0.25;
+  score -= Math.min(limitDown, 80) * 0.35;
+  const strongSectors = sectors.filter((row) => num(row["涨幅"]) > 1).length;
+  score += Math.min(strongSectors, 10);
+  if (decision.data_quality?.fallback_used) score -= 5;
+  return `${Math.max(0, Math.min(100, Math.round(score)))} / 100`;
+}
+
+function parsePair(value) {
+  const matches = String(value || "").match(/-?\d+(\.\d+)?/g) || [];
+  return [Number(matches[0] || 0), Number(matches[1] || 0)];
+}
+
+function num(value) {
+  const parsed = Number(String(value || "").replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatAmount(value) {
+  const amount = num(value);
+  if (!amount) return value;
+  if (amount >= 1000000000000) return `${(amount / 1000000000000).toFixed(2)} 万亿`;
+  if (amount >= 100000000) return `${(amount / 100000000).toFixed(0)} 亿`;
+  return String(value);
+}
+
+function amountPulse(value) {
+  const amount = num(value);
+  if (!amount) return "成交未知";
+  if (amount >= 1000000000000) return "成交放大";
+  if (amount >= 800000000000) return "成交正常";
+  return "成交缩小";
 }
 
 function renderItemList(title, items, renderer) {
@@ -241,19 +491,70 @@ function renderEmotionItem(item) {
   return `<strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.value)}</span>`;
 }
 
-function firstImpactCandidates() {
-  const checkpoint = currentCheckpoint();
+function candidateRowsForCheckpoint(checkpoint = currentCheckpoint()) {
   const tables = checkpoint?.tables || [];
-  const preferred = tables.find((table) => table.name === "candidate_first_impact.csv");
-  const fallback = tables.find((table) => table.name === "candidate_scores.csv" || table.name === "strategy_candidates.csv");
-  const table = preferred || fallback;
-  if (!table) return [];
-  return (table.rows || []).slice(0, 8).map((row) => ({
+  const candidateNames = [
+    "candidate_first_impact.csv",
+    "candidate_scores.csv",
+    "candidate_morning_check.csv",
+    "candidate_afternoon_restart.csv",
+    "candidate_close_confirm.csv",
+    "final_stocks.csv",
+    "strategy_candidates.csv",
+  ];
+  const table = candidateNames.map((name) => tables.find((item) => item.name === name)).find(Boolean);
+  if (!table) return { rows: [], source: "" };
+  return {
+    source: tableLabels[table.name.replace(/\.csv$/i, "")] || table.name,
+    rows: table.rows || [],
+  };
+}
+
+function firstImpactCandidates() {
+  const { rows } = candidateRowsForCheckpoint();
+  return rows.map((row) => ({
     stock: row["股票"] || [row["name"], row["code"]].filter(Boolean).join(" ") || "-",
     sector: row["板块"] || row["匹配板块"] || row["sector"] || "",
     pct: row["当前涨幅"] || row["当前涨幅%"] || row["pct"] || "",
     reason: row["走势自然语言"] || row["命中原因"] || row["setup_pass_reasons"] || row["来源"] || "",
   }));
+}
+
+function renderCandidateDashboard(checkpoint) {
+  const { rows, source } = candidateRowsForCheckpoint(checkpoint);
+  const items = rows.map((row) => ({
+    stock: row["股票"] || [row["name"], row["code"]].filter(Boolean).join(" ") || "-",
+    sector: row["板块"] || row["匹配板块"] || row["sector"] || "",
+    pct: row["当前涨幅"] || row["当前涨幅%"] || row["收盘涨幅"] || row["pct"] || "",
+    vwap: row["VWAP上/下"] || row["VWAP状态"] || "",
+    source: row["来源"] || row["来源(缩量回踩/放量突破/watchlist/portfolio)"] || row["策略"] || "",
+    reason: row["走势自然语言"] || row["命中原因"] || row["setup_pass_reasons"] || row["风险标记"] || "",
+  }));
+  return `
+    <section class="candidate-dashboard">
+      <div class="candidate-header">
+        <div>
+          <h3>候选 Dashboard</h3>
+          <p>${escapeHtml(source || "当前时段候选")} · ${items.length} 条</p>
+        </div>
+      </div>
+      ${
+        items.length
+          ? `<div class="candidate-grid">${items.map(renderCandidateCard).join("")}</div>`
+          : '<p class="empty">当前时段没有候选表。</p>'
+      }
+    </section>
+  `;
+}
+
+function renderCandidateCard(item) {
+  return `
+    <article class="candidate-card">
+      <strong>${escapeHtml(item.stock)}</strong>
+      <span>${escapeHtml([item.sector, item.pct ? `${item.pct}%` : "", item.vwap].filter(Boolean).join(" · "))}</span>
+      <em>${escapeHtml(item.source || item.reason || "候选")}</em>
+    </article>
+  `;
 }
 
 function renderCandidateItem(item) {
@@ -314,16 +615,19 @@ function mergedHoldings() {
 }
 
 function setupPortfolio() {
-  const meta = document.getElementById("portfolio-meta");
-  meta.textContent = `portfolio.md：${value(siteData.portfolio?.modified, "未读取")} · 前端保存只存在当前浏览器`;
-  document.getElementById("portfolio-form").addEventListener("submit", (event) => {
+  if (!byId("portfolio-form")) return;
+  const meta = byId("portfolio-meta");
+  if (meta) {
+    meta.textContent = `portfolio.md：${value(siteData.portfolio?.modified, "未读取")} · 前端保存只存在当前浏览器`;
+  }
+  byId("portfolio-form").addEventListener("submit", (event) => {
     event.preventDefault();
     const row = {
-      code: document.getElementById("holding-code").value.trim(),
-      name: document.getElementById("holding-name").value.trim(),
-      shares_total: document.getElementById("holding-shares").value,
-      avg_cost: document.getElementById("holding-cost").value,
-      note: document.getElementById("holding-note").value.trim(),
+      code: byId("holding-code").value.trim(),
+      name: byId("holding-name").value.trim(),
+      shares_total: byId("holding-shares").value,
+      avg_cost: byId("holding-cost").value,
+      note: byId("holding-note").value.trim(),
     };
     if (!row.code && !row.name) return;
     const rows = localHoldings().filter((item) => String(item.code || item.name) !== String(row.code || row.name));
@@ -332,7 +636,7 @@ function setupPortfolio() {
     event.target.reset();
     renderPortfolio();
   });
-  document.getElementById("clear-local-portfolio").addEventListener("click", () => {
+  byId("clear-local-portfolio")?.addEventListener("click", () => {
     saveLocalHoldings([]);
     renderPortfolio();
   });
@@ -347,7 +651,8 @@ function renderPortfolio() {
     rows,
     row_count: rows.length,
   };
-  document.getElementById("portfolio-table").innerHTML = renderTable(table);
+  const target = byId("portfolio-table");
+  if (target) target.innerHTML = renderTable(table);
 }
 
 function markdownItems() {
@@ -363,7 +668,7 @@ function saveMarkdownItems(items) {
 }
 
 function currentMarkdownId() {
-  return document.getElementById("markdown-id").value;
+  return byId("markdown-id")?.value || "";
 }
 
 function createMarkdownItem() {
@@ -378,19 +683,20 @@ function createMarkdownItem() {
 }
 
 function setupMarkdown() {
-  document.getElementById("new-markdown").addEventListener("click", () => {
+  if (!byId("markdown-form")) return;
+  byId("new-markdown")?.addEventListener("click", () => {
     const item = createMarkdownItem();
     const items = [item, ...markdownItems()];
     saveMarkdownItems(items);
     loadMarkdownIntoEditor(item);
     renderMarkdownList();
   });
-  document.getElementById("markdown-form").addEventListener("submit", (event) => {
+  byId("markdown-form").addEventListener("submit", (event) => {
     event.preventDefault();
     saveCurrentMarkdown();
   });
-  document.getElementById("download-markdown").addEventListener("click", downloadCurrentMarkdown);
-  document.getElementById("delete-markdown").addEventListener("click", deleteCurrentMarkdown);
+  byId("download-markdown")?.addEventListener("click", downloadCurrentMarkdown);
+  byId("delete-markdown")?.addEventListener("click", deleteCurrentMarkdown);
 
   const items = markdownItems();
   if (items.length) {
@@ -404,7 +710,9 @@ function setupMarkdown() {
 function renderMarkdownList() {
   const items = markdownItems();
   const activeId = currentMarkdownId();
-  document.getElementById("markdown-list").innerHTML = items.length
+  const target = byId("markdown-list");
+  if (!target) return;
+  target.innerHTML = items.length
     ? items
         .map(
           (item) => `
@@ -426,9 +734,9 @@ function renderMarkdownList() {
 }
 
 function loadMarkdownIntoEditor(item, persist = true) {
-  document.getElementById("markdown-id").value = item.id;
-  document.getElementById("markdown-title").value = item.title || "";
-  document.getElementById("markdown-body").value = item.body || "";
+  if (byId("markdown-id")) byId("markdown-id").value = item.id;
+  if (byId("markdown-title")) byId("markdown-title").value = item.title || "";
+  if (byId("markdown-body")) byId("markdown-body").value = item.body || "";
   if (persist && !markdownItems().some((entry) => entry.id === item.id)) {
     saveMarkdownItems([item, ...markdownItems()]);
   }
@@ -437,8 +745,8 @@ function loadMarkdownIntoEditor(item, persist = true) {
 function saveCurrentMarkdown() {
   const id = currentMarkdownId() || `md-${Date.now()}`;
   const now = new Date().toISOString();
-  const title = document.getElementById("markdown-title").value.trim() || "未命名笔记";
-  const body = document.getElementById("markdown-body").value;
+  const title = byId("markdown-title")?.value.trim() || "未命名笔记";
+  const body = byId("markdown-body")?.value || "";
   const items = markdownItems();
   const existing = items.find((item) => item.id === id);
   const next = {
@@ -463,8 +771,8 @@ function deleteCurrentMarkdown() {
 }
 
 function downloadCurrentMarkdown() {
-  const title = document.getElementById("markdown-title").value.trim() || "untitled";
-  const body = document.getElementById("markdown-body").value;
+  const title = byId("markdown-title")?.value.trim() || "untitled";
+  const body = byId("markdown-body")?.value || "";
   const filename = `${slugify(title)}.md`;
   const blob = new Blob([`# ${title}\n\n${body}\n`], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -491,9 +799,10 @@ function displayDate(value) {
 }
 
 function renderWeekly(weekly) {
-  const meta = document.getElementById("weekly-meta");
-  const link = document.getElementById("weekly-link");
-  const preview = document.getElementById("weekly-preview");
+  const meta = byId("weekly-meta");
+  const link = byId("weekly-link");
+  const preview = byId("weekly-preview");
+  if (!meta || !link || !preview) return;
   if (!weekly) {
     meta.textContent = "还没有周报。";
     link.style.display = "none";
@@ -533,7 +842,9 @@ function markdownPreview(text) {
 }
 
 function renderFiles(files) {
-  document.getElementById("recent-files").innerHTML = (files || [])
+  const target = byId("recent-files");
+  if (!target) return;
+  target.innerHTML = (files || [])
     .slice(0, 40)
     .map(
       (file) => `
@@ -550,7 +861,7 @@ function renderFiles(files) {
 async function main() {
   const response = await fetch("./data/site.json");
   siteData = await response.json();
-  document.getElementById("generated-at").textContent = siteData.generated_at || "-";
+  if (byId("generated-at")) byId("generated-at").textContent = siteData.generated_at || "-";
   setupDateSelector();
   setupViewTabs();
   setupPortfolio();
