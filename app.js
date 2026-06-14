@@ -165,21 +165,24 @@ function renderCheckpoint(checkpoint) {
     ${renderCandidateDashboard(checkpoint)}
   `;
   renderCheckpointTables(checkpoint);
+  renderPortfolio();
 }
 
 function renderActionBrief(checkpoint) {
   const decision = checkpoint.decision || {};
+  const demo = checkpoint.demo_analysis || {};
   return `
     <section class="brief brief-conclusion">
       <div class="brief-kicker">${escapeHtml(checkpoint.label)}</div>
-      <h2>${escapeHtml(conclusionTitle(decision))}</h2>
-      <p>${escapeHtml(conclusionText(decision))}</p>
+      <h2>${escapeHtml(demo.headline || conclusionTitle(decision))}</h2>
+      <p>${escapeHtml(demo.verdict || conclusionText(decision))}</p>
       <div class="pill-row">
         <span class="pill">风险偏好：${escapeHtml(value(decision.risk_preference))}</span>
         <span class="pill">主线状态：${escapeHtml(mainlineState(decision))}</span>
         <span class="pill">操作倾向：${escapeHtml(actionBias(decision))}</span>
       </div>
     </section>
+    ${renderSkillDemoAnalysis(checkpoint)}
     <div class="brief-two-col">
       <section class="brief">
         <h3>现在最该看</h3>
@@ -199,6 +202,74 @@ function renderActionBrief(checkpoint) {
       ${renderNextWatch(decision)}
     </section>
   `;
+}
+
+function renderSkillDemoAnalysis(checkpoint) {
+  const demo = checkpoint.demo_analysis;
+  if (!demo) return "";
+  return `
+    <section class="brief skill-demo">
+      <div class="skill-demo-head">
+        <div>
+          <span class="brief-kicker">Skill 实际流程</span>
+          <h3>${escapeHtml(demo.stage || checkpoint.label)}</h3>
+          <p>${escapeHtml(demo.goal || "")}</p>
+        </div>
+      </div>
+      <div class="skill-demo-grid">
+        ${renderDemoFileList("输入", demo.input_files)}
+        ${renderDemoFileList("输出", demo.output_files)}
+      </div>
+      <div class="skill-demo-grid analysis">
+        ${renderDemoBulletList("这个时点的分析", demo.analysis_points)}
+        ${renderDemoBulletList("下一步验证", demo.next_questions)}
+      </div>
+      ${renderDemoNotes(demo.data_notes)}
+    </section>
+  `;
+}
+
+function renderDemoFileList(title, files) {
+  const safeFiles = Array.isArray(files) ? files : [];
+  return `
+    <div class="demo-box">
+      <h4>${escapeHtml(title)}</h4>
+      ${
+        safeFiles.length
+          ? `<ul>${safeFiles
+              .map(
+                (file) => `
+                  <li>
+                    <strong>${escapeHtml(file.label || file.name)}</strong>
+                    <span>${escapeHtml(file.rows)} 行 · ${escapeHtml(file.name)}</span>
+                  </li>
+                `,
+              )
+              .join("")}</ul>`
+          : '<p class="muted">暂无。</p>'
+      }
+    </div>
+  `;
+}
+
+function renderDemoBulletList(title, items) {
+  const safeItems = Array.isArray(items) ? items : [];
+  return `
+    <div class="demo-box">
+      <h4>${escapeHtml(title)}</h4>
+      ${
+        safeItems.length
+          ? `<ol>${safeItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>`
+          : '<p class="muted">暂无。</p>'
+      }
+    </div>
+  `;
+}
+
+function renderDemoNotes(items) {
+  const notes = Array.isArray(items) ? items : [];
+  if (!notes.length) return "";
+  return `<div class="demo-notes">${notes.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>`;
 }
 
 function renderDecisionLists(decision) {
@@ -304,15 +375,113 @@ function renderPortfolioBrief(decision) {
 }
 
 function renderPriorityCard(item) {
-  const isP0 = item.priority === "P0";
+  const detail = buildPortfolioInsight(item);
+  const isP0 = detail.priority === "P0";
   return `
     <article class="priority-card ${isP0 ? "p0" : ""}">
-      <strong>${escapeHtml(item.priority)} · ${escapeHtml(item.stock)}</strong>
-      <p>原因：${escapeHtml(item.reason || "触发风险条件")}</p>
-      <p>看什么：${escapeHtml(item.trigger_price || "VWAP / 上午低点 / 所属板块强弱")}</p>
-      <p>动作倾向：${escapeHtml(actionFromPriority(item))}</p>
+      <div class="priority-topline">
+        <strong>${escapeHtml(detail.label)}｜${escapeHtml(detail.stock)}</strong>
+        <span>${escapeHtml(detail.type)}</span>
+      </div>
+      <p>状态：${escapeHtml(detail.status)}</p>
+      <p>关键线：${escapeHtml(detail.lines)}</p>
+      <p>动作：${escapeHtml(detail.action)}</p>
     </article>
   `;
+}
+
+function buildPortfolioInsight(item) {
+  const row = findStockContextRow(item.stock);
+  const stock = item.stock || row["股票"] || row.name || "-";
+  const priority = item.priority || "P3";
+  const current = row["当前价"] || row.current_price || "";
+  const pct = row["当前涨幅"] || row.pct || row["收盘涨幅"] || "";
+  const vwap = row["VWAP上/下"] || row["VWAP状态"] || (row.is_above_vwap === "True" ? "上" : row.is_above_vwap === "False" ? "下" : "");
+  const drawdown = row["高点回撤%"] || row["今日高点回撤%"] || "";
+  const relative = row.relative_strength_vs_sector || row["是否强于板块"] || "";
+  const reason = item.reason && !String(item.reason).includes("按风险条件") ? item.reason : portfolioReasonFromRow(row, item);
+  const label = priorityLabel(priority);
+  const type = holdingTypeFromRow(row, item);
+  const statusParts = [];
+  if (reason) statusParts.push(reason);
+  if (current) statusParts.push(`当前 ${current}`);
+  if (pct) statusParts.push(`涨幅 ${pct}%`);
+  if (vwap) statusParts.push(`VWAP ${vwap}`);
+  if (drawdown) statusParts.push(`高点回撤 ${drawdown}%`);
+  if (relative) statusParts.push(`相对板块 ${relative}`);
+  return {
+    stock,
+    priority,
+    label,
+    type,
+    status: statusParts.join("；") || "暂无明确触发条件，按下一 checkpoint 继续观察。",
+    lines: portfolioLines(row, item),
+    action: portfolioAction(row, item),
+  };
+}
+
+function priorityLabel(priority) {
+  const map = {
+    P0: "P0｜必须处理",
+    P1: "P1｜重点观察",
+    P2: "P2｜正常持有",
+    P3: "P3｜暂不关注",
+  };
+  return map[priority] || `${priority || "P3"}｜待确认`;
+}
+
+function holdingTypeFromRow(row, item) {
+  const pct = num(row["当前涨幅"] || row.pct || row["收盘涨幅"]);
+  const reason = `${item.reason || ""} ${row["日K形态"] || ""} ${row["走势自然语言"] || ""}`;
+  if ((item.priority || "") === "P0" || pct < -3) return "亏损风险仓";
+  if (pct >= 6 || reason.includes("强阳") || reason.includes("长上影")) return "高位利润仓";
+  if (reason.includes("中线") || reason.includes("thesis")) return "中线观察仓";
+  return "短线题材仓";
+}
+
+function portfolioReasonFromRow(row, item) {
+  if (item.invalid_condition === "是") return "风险条件已触发或接近触发";
+  if (row["VWAP上/下"] === "下" || row["VWAP状态"] === "下") return "跌到 VWAP 下方，需要确认是否修复";
+  if (num(row["高点回撤%"] || row["今日高点回撤%"]) <= -4) return "冲高回落较明显，需要保护利润或降风险";
+  if (row.relative_strength_vs_sector === "False" || row["是否强于板块"] === "否") return "弱于所属板块，逻辑线需要复核";
+  return item.reason || "暂无明确触发条件";
+}
+
+function portfolioLines(row, item) {
+  const trigger = item.trigger_price && !String(item.trigger_price).includes("按风险") ? item.trigger_price : "";
+  const current = num(row["当前价"] || row.current_price || "");
+  if (trigger) return `修复 VWAP｜风险 ${trigger}｜止损 计划失效线`;
+  if (current) {
+    const repair = (current * 1.015).toFixed(2);
+    const risk = (current * 0.985).toFixed(2);
+    const stop = (current * 0.965).toFixed(2);
+    if ((item.priority || "") === "P0") return `修复 ${repair}｜风险 ${risk}｜止损 ${stop}`;
+    if ((item.priority || "") === "P1") return `强势 ${repair}｜保护 ${risk}｜趋势 ${stop}`;
+    return `观察 VWAP｜风险 ${risk}｜失效 ${stop}`;
+  }
+  return "修复 VWAP｜风险 上午低点｜止损 昨日低点 / 计划失效线";
+}
+
+function portfolioAction(row, item) {
+  if (item.priority === "P0") return "下一 checkpoint 仍未修复就减仓；跌破止损线不再等待。";
+  if (item.priority === "P1") return "重点观察修复线，站回继续看，跌破保护线先降风险。";
+  if (item.priority === "P2") return "正常持有观察，尾盘复核 VWAP、板块强弱和逻辑线。";
+  return "低优先级，暂不处理，只在尾盘或下个 checkpoint 复核。";
+}
+
+function findStockContextRow(stock) {
+  const checkpoint = currentCheckpoint();
+  const rows = (checkpoint?.tables || []).flatMap((table) => table.rows || []);
+  const needle = normalizeStockKey(stock);
+  if (!needle) return {};
+  return rows.find((row) => {
+    const key = normalizeStockKey(row["股票"] || `${row.name || ""} ${row.code || ""}`);
+    return key && (key.includes(needle) || needle.includes(key));
+  }) || {};
+}
+
+function normalizeStockKey(input) {
+  return String(input || "").replace(/\s+/g, "").replace(/[^\u4e00-\u9fa5A-Za-z0-9*]/g, "");
 }
 
 function actionFromPriority(item) {
@@ -522,14 +691,7 @@ function firstImpactCandidates() {
 
 function renderCandidateDashboard(checkpoint) {
   const { rows, source } = candidateRowsForCheckpoint(checkpoint);
-  const items = rows.map((row) => ({
-    stock: row["股票"] || [row["name"], row["code"]].filter(Boolean).join(" ") || "-",
-    sector: row["板块"] || row["匹配板块"] || row["sector"] || "",
-    pct: row["当前涨幅"] || row["当前涨幅%"] || row["收盘涨幅"] || row["pct"] || "",
-    vwap: row["VWAP上/下"] || row["VWAP状态"] || "",
-    source: row["来源"] || row["来源(缩量回踩/放量突破/watchlist/portfolio)"] || row["策略"] || "",
-    reason: row["走势自然语言"] || row["命中原因"] || row["setup_pass_reasons"] || row["风险标记"] || "",
-  }));
+  const items = rows.map(candidateInsight);
   return `
     <section class="candidate-dashboard">
       <div class="candidate-header">
@@ -549,12 +711,64 @@ function renderCandidateDashboard(checkpoint) {
 
 function renderCandidateCard(item) {
   return `
-    <article class="candidate-card">
-      <strong>${escapeHtml(item.stock)}</strong>
-      <span>${escapeHtml([item.sector, item.pct ? `${item.pct}%` : "", item.vwap].filter(Boolean).join(" · "))}</span>
-      <em>${escapeHtml(item.source || item.reason || "候选")}</em>
+    <article class="candidate-card risk-${escapeHtml(item.riskLevel)}">
+      <div class="candidate-topline">
+        <strong>${escapeHtml(item.stock)}</strong>
+        <b>${escapeHtml(item.riskLabel)}</b>
+      </div>
+      <span>${escapeHtml([item.sector, item.pct ? `${item.pct}%` : "", item.vwap ? `VWAP ${item.vwap}` : ""].filter(Boolean).join(" · "))}</span>
+      <p>候选原因：${escapeHtml(item.reason)}</p>
+      <p>板块：${escapeHtml(item.sector || "未匹配")}</p>
+      <p>风险评估：${escapeHtml(item.riskText)}</p>
+      <em>${escapeHtml(item.source || "候选")}</em>
     </article>
   `;
+}
+
+function candidateInsight(row) {
+  const stock = row["股票"] || [row["name"], row["code"]].filter(Boolean).join(" ") || "-";
+  const sector = row["板块"] || row["匹配板块"] || row["sector"] || "";
+  const pct = row["当前涨幅"] || row["当前涨幅%"] || row["收盘涨幅"] || row["pct"] || "";
+  const vwap = row["VWAP上/下"] || row["VWAP状态"] || "";
+  const source = row["来源"] || row["来源(缩量回踩/放量突破/watchlist/portfolio)"] || row["策略"] || row["10:30来源"] || "";
+  const reason = row["走势自然语言"] || row["命中原因"] || row["setup_pass_reasons"] || source || "当前时段候选";
+  const risk = candidateRisk(row);
+  return {
+    stock,
+    sector,
+    pct,
+    vwap,
+    source,
+    reason,
+    riskLevel: risk.level,
+    riskLabel: risk.label,
+    riskText: risk.text,
+  };
+}
+
+function candidateRisk(row) {
+  const flags = [];
+  const drawdown = num(row["高点回撤%"] || row["今日高点回撤%"]);
+  const pct = num(row["当前涨幅"] || row["当前涨幅%"] || row["收盘涨幅"] || row["pct"]);
+  const vwap = row["VWAP上/下"] || row["VWAP状态"] || "";
+  const candle = row["日K形态"] || "";
+  const source = row["来源"] || row["来源(缩量回踩/放量突破/watchlist/portfolio)"] || row["策略"] || "";
+  const riskMark = row["风险标记"] || "";
+  if (vwap === "下") flags.push("VWAP 下方，承接不足");
+  if (drawdown <= -5) flags.push(`高点回撤 ${drawdown}%`);
+  if (candle.includes("长上影")) flags.push("长上影，追高风险");
+  if (pct >= 9) flags.push("涨幅接近涨停，不能追高");
+  if (riskMark && riskMark !== "normal") flags.push(riskMark);
+  if (source.includes("watchlist") && !source.includes("放量突破")) flags.push("自选观察，仍需触发条件");
+  if (!flags.length) {
+    return { level: "low", label: "风险低", text: "未见明显回撤或 VWAP 失守，继续看板块强度和成交确认。" };
+  }
+  const level = flags.length >= 2 || vwap === "下" || drawdown <= -5 ? "high" : "mid";
+  return {
+    level,
+    label: level === "high" ? "风险高" : "风险中",
+    text: flags.join("；"),
+  };
 }
 
 function renderCandidateItem(item) {
@@ -645,6 +859,8 @@ function setupPortfolio() {
 
 function renderPortfolio() {
   const rows = mergedHoldings();
+  const decision = currentCheckpoint()?.decision || {};
+  const priorityItems = decision.portfolio_priority || [];
   const table = {
     name: "portfolio_combined.csv",
     columns: ["source", "code", "name", "shares_total", "avg_cost", "current_snapshot", "last_add_price", "shares_added_recently", "note"],
@@ -652,7 +868,15 @@ function renderPortfolio() {
     row_count: rows.length,
   };
   const target = byId("portfolio-table");
-  if (target) target.innerHTML = renderTable(table);
+  if (target) {
+    target.innerHTML = `
+      <div class="portfolio-priority-panel">
+        <h3>当前 checkpoint 持仓处理</h3>
+        ${priorityItems.length ? `<div class="priority-list">${priorityItems.slice(0, 8).map(renderPriorityCard).join("")}</div>` : '<p class="empty">当前 checkpoint 暂无持仓优先级。</p>'}
+      </div>
+      ${renderTable(table)}
+    `;
+  }
 }
 
 function markdownItems() {
