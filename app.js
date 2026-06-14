@@ -92,7 +92,7 @@ function renderViewTabs() {
 function selectDay(date) {
   activeDay = (siteData.timeline_days || []).find((day) => day.date === date);
   activeCheckpointId = activeDay?.checkpoints?.[activeDay.checkpoints.length - 1]?.id || null;
-  renderPreopen(activeDay);
+  if (typeof renderPreopen === "function") renderPreopen(activeDay);
   renderTimeline();
 }
 
