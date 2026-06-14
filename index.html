@@ -17,6 +17,7 @@
         <select id="date-select"></select>
       </label>
       <nav id="app-nav" class="side-nav">
+        <button class="view-tab" data-view="preopen">盘前预案</button>
         <button class="view-tab active" data-view="radar">盘中雷达</button>
         <button class="view-tab" data-view="tables">数据表</button>
         <button class="view-tab" data-view="portfolio">持仓管理</button>
@@ -28,7 +29,15 @@
     </aside>
 
     <main class="content">
-      <section class="metric-grid app-view active" id="view-radar-metrics" data-view-panel="radar"></section>
+      <section id="preopen" class="section app-view" data-view-panel="preopen">
+        <div class="section-title">
+          <div>
+            <h2>09:10 / 09:20 盘前预案</h2>
+            <p id="preopen-subtitle">开盘前建立今日交易预案，不做新闻堆叠。</p>
+          </div>
+        </div>
+        <div id="preopen-content"></div>
+      </section>
 
       <section id="timeline" class="section app-view active" data-view-panel="radar">
         <div class="section-title">
