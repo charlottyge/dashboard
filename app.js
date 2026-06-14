@@ -156,7 +156,7 @@ function renderActionBrief(checkpoint) {
       <div class="brief-kicker">${escapeHtml(checkpoint.label)}</div>
       ${renderMarketSnapshot(checkpoint)}
       <h3>盘面分析</h3>
-      <p class="market-analysis">${escapeHtml(analysisTextForCheckpoint(checkpoint, decision, demo))}</p>
+      ${renderAnalysisMarkdown(analysisTextForCheckpoint(checkpoint, decision, demo))}
       <div class="summary-grid">
         ${renderHoldingSummary(checkpoint)}
         ${renderCandidateSummary(checkpoint)}
@@ -167,7 +167,6 @@ function renderActionBrief(checkpoint) {
         <span class="pill">操作倾向：${escapeHtml(actionBias(decision))}</span>
       </div>
     </section>
-    ${renderSkillDemoAnalysis(checkpoint)}
     <div class="brief-two-col">
       <section class="brief">
         <h3>现在最该看</h3>
@@ -191,6 +190,32 @@ function renderActionBrief(checkpoint) {
       ${renderAvoidList(checkpoint)}
     </section>
   `;
+}
+
+function renderAnalysisMarkdown(text) {
+  const blocks = String(text || "")
+    .split(/\n{2,}/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!blocks.length) return '<p class="market-analysis">暂无盘面分析。</p>';
+  return `
+    <div class="market-analysis">
+      ${blocks.map(renderAnalysisBlock).join("")}
+    </div>
+  `;
+}
+
+function renderAnalysisBlock(block) {
+  const [head, ...rest] = block.split(/：/);
+  if (rest.length && head.length <= 12) {
+    return `
+      <section class="analysis-block">
+        <h4>${escapeHtml(head)}</h4>
+        <p>${escapeHtml(rest.join("：").trim())}</p>
+      </section>
+    `;
+  }
+  return `<section class="analysis-block"><p>${escapeHtml(block)}</p></section>`;
 }
 
 function renderMarketSnapshot(checkpoint) {
@@ -344,6 +369,7 @@ function renderHoldingSummary(checkpoint) {
   const priorities = checkpoint.decision?.portfolio_priority || [];
   const p0 = priorities.filter((item) => item.priority === "P0").slice(0, 3);
   const p1 = priorities.filter((item) => item.priority === "P1").slice(0, 3);
+  const changeText = holdingChangeText(checkpoint);
   const text = isTurnoverCheckpoint(checkpoint) && p0.length
     ? `${p0.map((item) => item.stock).join("、")} 是 P0。科技指数强时仍未同步修复，说明要看个股承接；没有明确价格线时，不写假修复线，11:20 以 VWAP / 板块强弱 / 风控线确认。`
     : p0.length
@@ -355,6 +381,7 @@ function renderHoldingSummary(checkpoint) {
     <article class="summary-box">
       <h4>持仓总结</h4>
       <p>${escapeHtml(text)}</p>
+      ${changeText ? `<p class="summary-change">${escapeHtml(changeText)}</p>` : ""}
     </article>
   `;
 }
@@ -364,6 +391,7 @@ function renderCandidateSummary(checkpoint) {
   const items = rows.map(candidateInsight);
   const risky = items.filter((item) => item.riskLevel === "high").slice(0, 3);
   const focus = candidateGroups(items).research.slice(0, 3);
+  const changeText = candidateChangeText(checkpoint, items);
   const text = isTurnoverCheckpoint(checkpoint)
     ? turnoverCandidateSummaryText(items)
     : isAfterCloseCheckpoint(checkpoint)
@@ -381,8 +409,53 @@ function renderCandidateSummary(checkpoint) {
     <article class="summary-box">
       <h4>候选总结</h4>
       <p>${escapeHtml(text)}</p>
+      ${changeText ? `<p class="summary-change">${escapeHtml(changeText)}</p>` : ""}
     </article>
   `;
+}
+
+function previousCheckpoint(checkpoint) {
+  const checkpoints = activeDay?.checkpoints || [];
+  const index = checkpoints.findIndex((item) => item.id === checkpoint?.id);
+  if (index <= 0) return null;
+  if (isStrategyCheckpoint(checkpoint)) return checkpoints[index - 1];
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (!isStrategyCheckpoint(checkpoints[cursor])) return checkpoints[cursor];
+  }
+  return null;
+}
+
+function holdingChangeText(checkpoint) {
+  const previous = previousCheckpoint(checkpoint);
+  if (!previous || isStrategyCheckpoint(previous)) return "";
+  const prevImportant = (previous.decision?.portfolio_priority || []).filter((item) => ["P0", "P1"].includes(item.priority));
+  if (!prevImportant.length) return "";
+  const current = checkpoint.decision?.portfolio_priority || [];
+  const currentKeys = new Set(current.filter((item) => ["P0", "P1"].includes(item.priority)).map((item) => normalizeStockKey(item.stock)));
+  const missing = prevImportant.filter((item) => !currentKeys.has(normalizeStockKey(item.stock))).slice(0, 3);
+  if (!missing.length) return "";
+  return `较上一时间点：${missing.map((item) => item.stock).join("、")} 不再列入 P0/P1，说明当前表里没有继续触发高优先级风险；但这不是“完全安全”，仍要看是否强于板块和 VWAP。`;
+}
+
+function candidateChangeText(checkpoint, currentItems) {
+  const previous = previousCheckpoint(checkpoint);
+  if (!previous || isStrategyCheckpoint(previous)) return "";
+  const prevItems = candidateRowsForCheckpoint(previous).rows.map(candidateInsight);
+  const prevMentioned = candidateGroups(prevItems).research.concat(prevItems.filter((item) => item.riskLevel === "high")).slice(0, 5);
+  if (!prevMentioned.length) return "";
+  const currentByKey = new Map(currentItems.map((item) => [normalizeStockKey(item.stock), item]));
+  const currentResearchKeys = new Set(candidateGroups(currentItems).research.map((item) => normalizeStockKey(item.stock)));
+  const changed = prevMentioned
+    .filter((item) => !currentResearchKeys.has(normalizeStockKey(item.stock)))
+    .slice(0, 3)
+    .map((item) => {
+      const now = currentByKey.get(normalizeStockKey(item.stock));
+      if (!now) return `${item.stock} 未进入当前候选表，说明当前时点没有继续满足候选输出条件`;
+      if (now.riskLevel === "high") return `${item.stock} 风险升高，转为不追高/只观察`;
+      if (now.vwap && now.vwap !== "上") return `${item.stock} 未站稳 VWAP，不能继续当重点`;
+      return `${item.stock} 仍在池内但不再是前三重点，优先级下降`;
+    });
+  return changed.length ? `较上一时间点：${changed.join("；")}。` : "";
 }
 
 function turnoverCandidateSummaryText(items) {
@@ -390,74 +463,6 @@ function turnoverCandidateSummaryText(items) {
   const list = key.length ? key : candidateGroups(items).research.slice(0, 3);
   if (!list.length) return `当前候选 ${items.length} 条，只作为观察池；10:30 先看 VWAP 承接，不把候选当买入清单。`;
   return `${list.map((item) => `${item.stock}｜${candidateRole(item)}`).join("；")}。11:20 看是否站稳 VWAP、强于板块；不满足就只算冲高观察。`;
-}
-
-function renderSkillDemoAnalysis(checkpoint) {
-  const demo = checkpoint.demo_analysis;
-  if (!demo) return "";
-  return `
-    <section class="brief skill-demo">
-      <div class="skill-demo-head">
-        <div>
-          <span class="brief-kicker">Skill 实际流程</span>
-          <h3>${escapeHtml(demo.stage || checkpoint.label)}</h3>
-          <p>${escapeHtml(demo.goal || "")}</p>
-        </div>
-      </div>
-      <div class="skill-demo-grid">
-        ${renderDemoFileList("输入", demo.input_files)}
-        ${renderDemoFileList("输出", demo.output_files)}
-      </div>
-      <div class="skill-demo-grid analysis">
-        ${renderDemoBulletList("这个时点的分析", demo.analysis_points)}
-        ${renderDemoBulletList("下一步验证", demo.next_questions)}
-      </div>
-      ${renderDemoNotes(demo.data_notes)}
-    </section>
-  `;
-}
-
-function renderDemoFileList(title, files) {
-  const safeFiles = Array.isArray(files) ? files : [];
-  return `
-    <div class="demo-box">
-      <h4>${escapeHtml(title)}</h4>
-      ${
-        safeFiles.length
-          ? `<ul>${safeFiles
-              .map(
-                (file) => `
-                  <li>
-                    <strong>${escapeHtml(file.label || file.name)}</strong>
-                    <span>${escapeHtml(file.rows)} 行 · ${escapeHtml(file.name)}</span>
-                  </li>
-                `,
-              )
-              .join("")}</ul>`
-          : '<p class="muted">暂无。</p>'
-      }
-    </div>
-  `;
-}
-
-function renderDemoBulletList(title, items) {
-  const safeItems = Array.isArray(items) ? items : [];
-  return `
-    <div class="demo-box">
-      <h4>${escapeHtml(title)}</h4>
-      ${
-        safeItems.length
-          ? `<ol>${safeItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>`
-          : '<p class="muted">暂无。</p>'
-      }
-    </div>
-  `;
-}
-
-function renderDemoNotes(items) {
-  const notes = Array.isArray(items) ? items : [];
-  if (!notes.length) return "";
-  return `<div class="demo-notes">${notes.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>`;
 }
 
 function renderDecisionLists(decision) {
