@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A 股盘中分析雷达</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">A 股盘中分析雷达</p>
+        <h1>按 checkpoint 展示市场、主线、候选和持仓处理</h1>
+        <p class="summary">每次本地跑完扫描后发布静态数据，GitHub Pages 页面会读取最新 JSON 展示结果。</p>
+      </div>
+      <div class="stamp">
+        <span>静态数据更新时间</span>
+        <strong id="generated-at">读取中</strong>
+      </div>
+    </header>
+
+    <main>
+      <section class="control-band">
+        <label>
+          交易日
+          <select id="date-select"></select>
+        </label>
+        <div class="quick-nav">
+          <a href="#timeline">盘中时间轴</a>
+          <a href="#portfolio">持仓管理</a>
+          <a href="#markdown">Markdown</a>
+          <a href="#weekly">周度雷达</a>
+        </div>
+      </section>
+
+      <section class="metric-grid" id="metrics"></section>
+
+      <section id="timeline" class="section">
+        <div class="section-title">
+          <div>
+            <h2>盘中时间轴</h2>
+            <p id="timeline-subtitle">按时间点展开每次扫描的分析结果。</p>
+          </div>
+        </div>
+        <div id="checkpoint-tabs" class="checkpoint-tabs"></div>
+        <div id="checkpoint-detail" class="checkpoint-detail"></div>
+      </section>
+
+      <section id="portfolio" class="section">
+        <div class="section-title">
+          <div>
+            <h2>持仓管理</h2>
+            <p id="portfolio-meta">读取本地 portfolio.md，并合并浏览器保存的手工持仓。</p>
+          </div>
+          <button id="clear-local-portfolio" class="button ghost">清空前端保存</button>
+        </div>
+        <form id="portfolio-form" class="portfolio-form">
+          <input id="holding-code" placeholder="代码，如 600522" />
+          <input id="holding-name" placeholder="名称" />
+          <input id="holding-shares" type="number" min="0" placeholder="持仓数量" />
+          <input id="holding-cost" type="number" min="0" step="0.001" placeholder="成本" />
+          <input id="holding-note" placeholder="备注 / 风控线" />
+          <button class="button" type="submit">保存持仓</button>
+        </form>
+        <div id="portfolio-table" class="table-stack"></div>
+      </section>
+
+      <section id="markdown" class="section">
+        <div class="section-title">
+          <div>
+            <h2>Markdown 管理</h2>
+            <p>在当前浏览器创建、编辑和下载 Markdown 笔记。</p>
+          </div>
+          <button id="new-markdown" class="button">新建 Markdown</button>
+        </div>
+        <div class="markdown-layout">
+          <div id="markdown-list" class="markdown-list"></div>
+          <form id="markdown-form" class="markdown-editor">
+            <input id="markdown-id" type="hidden" />
+            <input id="markdown-title" placeholder="标题" />
+            <textarea id="markdown-body" placeholder="正文，支持 Markdown"></textarea>
+            <div class="editor-actions">
+              <button class="button" type="submit">保存</button>
+              <button id="download-markdown" class="button ghost" type="button">下载 .md</button>
+              <button id="delete-markdown" class="button danger" type="button">删除</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="weekly" class="section">
+        <div class="section-title">
+          <div>
+            <h2>周度板块轮动</h2>
+            <p id="weekly-meta">读取中</p>
+          </div>
+          <a id="weekly-link" class="button" href="#" download>下载原始周报</a>
+        </div>
+        <article id="weekly-preview" class="report-preview"></article>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <div>
+            <h2>最近导出文件</h2>
+            <p>用于核对数据来源和生成记录。</p>
+          </div>
+        </div>
+        <div id="recent-files" class="file-list"></div>
+      </section>
+    </main>
+
+    <footer>
+      <p>研究辅助工具，不构成投资建议。公开数据源可能延迟、缺失或字段变化。</p>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
