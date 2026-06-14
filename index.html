@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>A 股盘中分析雷达</title>
-    <link rel="stylesheet" href="./styles.css?v=20260615-0010" />
+    <link rel="stylesheet" href="./styles.css?v=20260615-portfolio-off" />
   </head>
   <body>
     <aside class="sidebar">
@@ -17,10 +17,8 @@
         <select id="date-select"></select>
       </label>
       <nav id="app-nav" class="side-nav">
-        <button class="view-tab" data-view="preopen">盘前预案</button>
         <button class="view-tab active" data-view="radar">盘中雷达</button>
         <button class="view-tab" data-view="tables">数据表</button>
-        <button class="view-tab" data-view="portfolio">持仓管理</button>
         <button class="view-tab" data-view="markdown">Markdown</button>
         <button class="view-tab" data-view="weekly">周度雷达</button>
         <button class="view-tab" data-view="files">导出文件</button>
@@ -39,16 +37,6 @@
     </aside>
 
     <main class="content">
-      <section id="preopen" class="section app-view" data-view-panel="preopen">
-        <div class="section-title">
-          <div>
-            <h2>09:10 / 09:20 盘前预案</h2>
-            <p id="preopen-subtitle">开盘前建立今日交易预案，不做新闻堆叠。</p>
-          </div>
-        </div>
-        <div id="preopen-content"></div>
-      </section>
-
       <section id="timeline" class="section app-view active" data-view-panel="radar">
         <div class="section-title">
           <div>
@@ -68,25 +56,6 @@
           </div>
         </div>
         <div id="checkpoint-tables" class="table-stack"></div>
-      </section>
-
-      <section id="portfolio" class="section app-view" data-view-panel="portfolio">
-        <div class="section-title">
-          <div>
-            <h2>持仓管理</h2>
-            <p id="portfolio-meta">读取本地 portfolio.md，并合并浏览器保存的手工持仓。</p>
-          </div>
-          <button id="clear-local-portfolio" class="button ghost">清空前端保存</button>
-        </div>
-        <form id="portfolio-form" class="portfolio-form">
-          <input id="holding-code" placeholder="代码，如 600522" />
-          <input id="holding-name" placeholder="名称" />
-          <input id="holding-shares" type="number" min="0" placeholder="持仓数量" />
-          <input id="holding-cost" type="number" min="0" step="0.001" placeholder="成本" />
-          <input id="holding-note" placeholder="备注 / 风控线" />
-          <button class="button" type="submit">保存持仓</button>
-        </form>
-        <div id="portfolio-table" class="table-stack"></div>
       </section>
 
       <section id="markdown" class="section app-view" data-view-panel="markdown">
@@ -134,6 +103,6 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260615-0010"></script>
+    <script src="./app.js?v=20260615-portfolio-off"></script>
   </body>
 </html>

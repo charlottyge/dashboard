@@ -91,13 +91,13 @@ function renderViewTabs() {
 
 function selectDay(date) {
   activeDay = (siteData.timeline_days || []).find((day) => day.date === date);
-  activeCheckpointId = activeDay?.checkpoints?.[activeDay.checkpoints.length - 1]?.id || null;
+  activeCheckpointId = timelineCheckpoints(activeDay)?.[0]?.id || null;
   if (typeof renderPreopen === "function") renderPreopen(activeDay);
   renderTimeline();
 }
 
 function renderTimeline() {
-  const checkpoints = activeDay?.checkpoints || [];
+  const checkpoints = timelineCheckpoints(activeDay);
   const subtitle = byId("timeline-subtitle");
   if (subtitle) {
     subtitle.textContent = activeDay
@@ -133,6 +133,12 @@ function renderCheckpoint(checkpoint) {
     target.innerHTML = '<p class="empty">当前日期没有扫描结果。</p>';
     return;
   }
+  if (isPreopenCheckpoint(checkpoint)) {
+    target.innerHTML = renderPreopenTimeline();
+    renderCheckpointTables(checkpoint);
+    renderPortfolio();
+    return;
+  }
   const decision = checkpoint.decision || {};
   target.innerHTML = isStrategyCheckpoint(checkpoint)
     ? renderStrategyCheckpoint(checkpoint)
@@ -141,8 +147,29 @@ function renderCheckpoint(checkpoint) {
   renderPortfolio();
 }
 
+function timelineCheckpoints(day) {
+  if (!day) return [];
+  return [
+    {
+      id: "preopen",
+      label: "09:10 盘前预案",
+      decision: { risk_preference: "预案" },
+      tables: [],
+    },
+    ...(day.checkpoints || []),
+  ];
+}
+
+function isPreopenCheckpoint(checkpoint) {
+  return checkpoint?.id === "preopen";
+}
+
 function isStrategyCheckpoint(checkpoint) {
   return checkpoint?.id?.includes("strategy") || String(checkpoint?.label || "").includes("策略包");
+}
+
+function renderPreopenTimeline() {
+  return renderPreopenContent(activeDay);
 }
 
 function renderActionBrief(checkpoint) {
@@ -383,8 +410,7 @@ function renderPortfolioWorkbench(checkpoint) {
   const priority = checkpoint.decision?.portfolio_priority || [];
   if (!signals.length && !priority.length) return '<p class="empty">暂无持仓数据。请检查最近日期 portfolio.md 是否有持仓块。</p>';
   return `
-    ${priority.length ? `<div class="priority-list">${priority.slice(0, 8).map(renderPriorityCard).join("")}</div>` : ""}
-    ${signals.length ? `<div class="stock-signal-grid">${signals.map(renderStockSignalCard).join("")}</div>` : ""}
+    ${signals.length ? `<div class="stock-signal-grid">${signals.map(renderPortfolioSignalCard).join("")}</div>` : ""}
   `;
 }
 
@@ -454,11 +480,13 @@ function portfolioSignalItems(checkpoint) {
   return mergedHoldings().map((holding) => {
     const name = holding.name || holding.stock || holding.code || "-";
     const row = findStockContextRowInCheckpoint(checkpoint, name, holding.code);
-    const priority = (checkpoint.decision?.portfolio_priority || []).find((item) => stockMatches(item.stock, name, holding.code))?.priority || "P2";
+    const priorityItem = (checkpoint.decision?.portfolio_priority || []).find((item) => stockMatches(item.stock, name, holding.code));
+    const priority = priorityItem?.priority || "P2";
     return buildStockSignal({
       name,
       code: holding.code || "",
       priority,
+      priorityItem,
       sector: row["板块"] || holding.sector || "",
       role: holding.role || "持仓",
       note: holding.note || "",
@@ -498,12 +526,34 @@ function newCandidateItems(checkpoint) {
     });
 }
 
-function buildStockSignal({ name, code, priority, sector, role, note, row, kind }) {
+function buildStockSignal({ name, code, priority, priorityItem, sector, role, note, row, kind }) {
   const tradeAlerts = tradeAlertTexts(row);
   const news = row["新闻"] || row["news"] || "未接入实时新闻源";
   const announcement = row["公告"] || row["announcement"] || "未接入公告源";
   const action = stockSignalAction(priority, tradeAlerts, kind);
-  return { name, code, priority, sector, role, note, row, kind, tradeAlerts, news, announcement, action };
+  return { name, code, priority, priorityItem, sector, role, note, row, kind, tradeAlerts, news, announcement, action };
+}
+
+function renderPortfolioSignalCard(item) {
+  const insight = buildPortfolioInsight(item.priorityItem || { stock: [item.name, item.code].filter(Boolean).join(" "), priority: item.priority });
+  return `
+    <article class="stock-signal-card portfolio-signal-card ${item.priority === "P0" ? "urgent" : ""}">
+      <div class="candidate-topline">
+        <strong>${escapeHtml(`${insight.label}｜${[item.name, item.code].filter(Boolean).join(" ")}`)}</strong>
+        <b>${escapeHtml(insight.type)}</b>
+      </div>
+      <span>${escapeHtml([item.sector, item.role].filter(Boolean).join(" · ") || "-")}</span>
+      <p>为什么是 ${escapeHtml(insight.priority)}：${escapeHtml(insight.why)}</p>
+      <p>成本 / 当前 / 盈亏：${escapeHtml(insight.position)}</p>
+      <p>状态：${escapeHtml(insight.status)}</p>
+      <p>关键线：${escapeHtml(insight.lines)}</p>
+      <p>交易异动：${escapeHtml(item.tradeAlerts.length ? item.tradeAlerts.join("；") : "暂无明显交易异动。")}</p>
+      <p>新闻：${escapeHtml(item.news)}</p>
+      <p>公告：${escapeHtml(item.announcement)}</p>
+      <p>动作：${escapeHtml(insight.action || item.action)}</p>
+      ${item.note ? `<em>${escapeHtml(item.note)}</em>` : ""}
+    </article>
+  `;
 }
 
 function renderStockSignalCard(item) {
@@ -1173,9 +1223,12 @@ function renderAfterCloseAvoidList(checkpoint) {
 function renderPreopen(day) {
   const target = byId("preopen-content");
   if (!target) return;
+  target.innerHTML = renderPreopenContent(day);
+}
+
+function renderPreopenContent(day) {
   if (!day) {
-    target.innerHTML = '<p class="empty">暂无盘前预案。</p>';
-    return;
+    return '<p class="empty">暂无盘前预案。</p>';
   }
   const checkpoints = day.checkpoints || [];
   const first = checkpoints.find((item) => !isStrategyCheckpoint(item)) || checkpoints[0];
@@ -1196,7 +1249,7 @@ function renderPreopen(day) {
     ? "数据有 fallback，今天只做验证，不放大仓位。"
     : "高位分化后的验证日，不追高，等 09:45 / 10:30 确认。";
 
-  target.innerHTML = `
+  return `
     <section class="preopen-hero">
       <span class="brief-kicker">${escapeHtml(day.date)} · 盘前预案 demo</span>
       <h2>${escapeHtml(headline)}</h2>
@@ -1396,6 +1449,11 @@ function renderCheckpointTables(checkpoint) {
   const target = byId("checkpoint-tables");
   if (!target) return;
   const subtitle = byId("tables-subtitle");
+  if (isPreopenCheckpoint(checkpoint)) {
+    if (subtitle) subtitle.textContent = "09:10 盘前预案 · 使用上一交易日数据、watchlist 和 portfolio 缓存生成。";
+    target.innerHTML = '<p class="empty">盘前预案没有单独扫描表；请查看时间轴中的预案内容。</p>';
+    return;
+  }
   if (subtitle) {
     subtitle.textContent = checkpoint
       ? `${checkpoint.label} · ${checkpoint.directory}`
@@ -1831,12 +1889,7 @@ function saveLocalHoldings(rows) {
 function mergedHoldings() {
   const historyRows = activeDay?.date ? siteData.portfolio_history?.[activeDay.date]?.base_holdings : null;
   const baseRows = historyRows?.length ? historyRows : siteData.portfolio?.base_holdings || [];
-  const base = baseRows.map((row) => ({ ...row, source: row.source || "portfolio.md" }));
-  const local = localHoldings().map((row) => ({ ...row, source: "前端保存" }));
-  const byCode = new Map();
-  for (const row of base) byCode.set(String(row.code || row.name), row);
-  for (const row of local) byCode.set(String(row.code || row.name), row);
-  return [...byCode.values()];
+  return baseRows.map((row) => ({ ...row, source: row.source || "portfolio.md" }));
 }
 
 function setupPortfolio() {
