@@ -163,6 +163,7 @@ def build_checkpoint_decision_summary(
             "portfolio_afternoon_status",
             "portfolio_close_confirm",
             "portfolio_final_review",
+            "portfolio_decision_rules",
         ],
     )
 
@@ -360,28 +361,50 @@ def _do_not_chase(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _portfolio_priority(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    output: list[dict[str, Any]] = []
+    by_stock: dict[str, dict[str, Any]] = {}
     for row in rows:
         stock = _stock_name(row)
         if not stock:
             continue
         priority, action_type, reason = _portfolio_action(row)
-        output.append(
-            {
-                "stock": stock,
-                "priority": priority,
-                "action_type": action_type,
-                "reason": reason,
-                "trigger_price": _first(row, ["关键位", "关键位1", "明日处理条件", "明日处理"], ""),
-                "invalid_condition": _first(row, ["原计划失效条件", "是否触发风险条件", "是否触发风险处理"], ""),
-            }
-        )
+        item = {
+            "stock": stock,
+            "priority": priority,
+            "action_type": action_type,
+            "reason": reason,
+            "trigger_price": _first(row, ["风险线", "止损线", "第一保护线", "关键位", "关键位1", "明日处理条件", "明日处理"], ""),
+            "invalid_condition": _first(row, ["原计划失效条件", "是否触发风险条件", "是否触发风险处理"], ""),
+        }
+        existing = by_stock.get(stock)
+        if existing is None or _portfolio_priority_row_quality(item, row) > _portfolio_priority_row_quality(existing, {}):
+            by_stock[stock] = item
+    output = list(by_stock.values())
     order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
     output.sort(key=lambda item: order.get(str(item["priority"]), 9))
     return output[:10]
 
 
+def _portfolio_priority_row_quality(item: dict[str, Any], row: dict[str, Any]) -> int:
+    quality = 0
+    if _text(_first(row, ["类型"], "")):
+        quality += 5
+    if _text(item.get("trigger_price")):
+        quality += 3
+    if _text(item.get("reason")) and item.get("reason") != "触发风险条件":
+        quality += 1
+    return quality
+
+
 def _portfolio_action(row: dict[str, Any]) -> tuple[str, str, str]:
+    position_type = _text(_first(row, ["类型"], ""))
+    if "必须处理" in position_type:
+        return "P0", "risk_handle", position_type
+    if "修复失败" in position_type:
+        return "P1", "watch_key_level", position_type
+    if "冲高后保护" in position_type:
+        return "P1", "profit_protect", position_type
+    if "强势趋势" in position_type:
+        return "P2", "hold_observe", position_type
     risk = _truthy(_first(row, ["是否触发风险条件", "是否触发风险处理", "risk_condition_met"], ""))
     risk_status = _text(_first(row, ["今日风险状态", "明日处理", "午后预案"], ""))
     vwap = _vwap_state(row)

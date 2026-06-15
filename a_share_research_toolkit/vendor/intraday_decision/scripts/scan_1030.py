@@ -96,6 +96,7 @@ INTRADAY_FIELD_AVAILABILITY_FIELDS = [
     "high",
     "low",
     "prev_close",
+    "prev_low",
     "ma5",
     "ma10",
     "prev5_high",
@@ -1292,6 +1293,7 @@ def metrics_from_daily(daily: list[dict[str, Any]], base: dict[str, Any]) -> dic
         "recent60_gain_pct": (base["price"] / float(prev60[0]["close"]) - 1) * 100 if prev60 else "",
         "drawdown_from_20d_high_pct": (base["price"] / prev20_high - 1) * 100 if prev20_high else "",
         "prev_close": float(previous[-1]["close"]),
+        "prev_low": float(previous[-1]["low"]),
         "prev5_avg_volume_daily": sum(float(bar["volume"]) for bar in prev5) / 5,
         "prev10_avg_volume_daily": sum(float(bar["volume"]) for bar in prev10) / 10,
     }
@@ -1768,6 +1770,7 @@ def evaluate_stock(
         "high": round(high, 3),
         "low": round(low, 3),
         "prev_close": round(daily["prev_close"], 3),
+        "prev_low": round(daily["prev_low"], 3),
         "ma5": round(daily["ma5"], 3),
         "ma10": round(daily["ma10"], 3),
         "ma20": round(daily["ma20"], 3) if daily.get("ma20") else "",
@@ -2434,6 +2437,185 @@ def build_portfolio_extra_rows(portfolio: dict[str, dict[str, Any]], plans: dict
     return rows
 
 
+def next_checkpoint_name(checkpoint: str) -> str:
+    key = str(checkpoint or "").replace(":", "")
+    mapping = {
+        "925": "09:45",
+        "0925": "09:45",
+        "945": "10:30",
+        "0945": "10:30",
+        "1030": "11:20",
+        "1120": "13:30",
+        "1330": "14:30",
+        "1430": "15:10",
+        "1440": "15:10",
+        "1510": "明日 09:45",
+    }
+    return mapping.get(key, "下一 checkpoint")
+
+
+def price_level(value: Any) -> str:
+    parsed = num(value)
+    return f"{parsed:.2f}" if parsed is not None and parsed > 0 else ""
+
+
+def bool_text(value: Any) -> str:
+    if value is True:
+        return "是"
+    if value is False:
+        return "否"
+    return "unavailable"
+
+
+def portfolio_position_type(row: dict[str, Any], plan: dict[str, Any]) -> str:
+    if not row:
+        return "数据不足，人工复核"
+    pct = row_float(row, "pct")
+    drawdown = abs(row_float(row, "drawdown_from_high_pct"))
+    rel = row_float(row, "relative_strength_vs_sector")
+    above_vwap = row.get("is_above_vwap") is True
+    risk = bool(row.get("risk_flags")) or row.get("is_above_vwap") is False
+    support = num(plan.get("key_support_1"))
+    price = num(row.get("price"))
+    if support is not None and price is not None and price < support:
+        return "必须处理 / 风险触发"
+    if risk and (rel < 0 or not above_vwap):
+        return "必须处理 / 风险触发"
+    if rel < 0 or not above_vwap:
+        return "弱于板块 / 修复失败"
+    if pct >= 6 and drawdown <= 3:
+        return "冲高后保护利润"
+    if above_vwap and (pct >= 3 or row_float(row, "recent10_gain_pct") >= 10):
+        return "强势趋势持有"
+    return "正常震荡持有"
+
+
+def portfolio_key_levels(row: dict[str, Any]) -> dict[str, str]:
+    if not row:
+        return {}
+    stop_candidates = [num(row.get("prev_low")), num(row.get("ma5"))]
+    stop_candidates = [value for value in stop_candidates if value is not None and value > 0]
+    return {
+        "强势线": price_level(row.get("high")),
+        "修复线": price_level(row.get("vwap")),
+        "第一保护线": price_level(row.get("vwap")),
+        "风险线": price_level(row.get("low")),
+        "止损线": price_level(max(stop_candidates) if stop_candidates else ""),
+        "趋势线": price_level(row.get("ma5")),
+        "中线观察线": price_level(row.get("ma10")),
+        "中线失效线": price_level(row.get("ma20")),
+        "昨日低点": price_level(row.get("prev_low")),
+    }
+
+
+def portfolio_action_plan(position_type: str, levels: dict[str, str], next_check: str) -> list[str]:
+    vwap = levels.get("第一保护线") or "VWAP"
+    repair = levels.get("修复线") or "VWAP"
+    risk = levels.get("风险线") or "上午低点"
+    stop = levels.get("止损线") or "昨日低点 / 5日线"
+    if "数据不足" in position_type:
+        return ["数据不足，无法给出交易条件", "需要人工复核现价、VWAP、上午低点、昨日低点和均线"]
+    if "必须处理" in position_type or "修复失败" in position_type:
+        return [
+            "不补仓",
+            f"重新站回 {repair} 且强于板块，才降级为观察",
+            f"跌破 {risk}，先降风险",
+            f"跌破 {stop}，短线仓退出",
+            f"{next_check} 仍弱于板块，减仓处理",
+        ]
+    if "冲高后保护" in position_type or "强势趋势" in position_type:
+        return [
+            "不追高加仓",
+            f"维持 {vwap} 上方，继续持有",
+            f"跌破 {vwap} 且 15 分钟不能收回，减 1/3",
+            f"跌破 {risk}，减半或退出短线仓",
+            f"跌破 {stop}，短线仓退出，只保留有 thesis 的底仓",
+        ]
+    return [
+        "不追高，不补弱",
+        f"维持 {vwap} 上方，正常持有",
+        f"跌破 {vwap}，转观察",
+        f"跌破 {risk}，降风险",
+        f"跌破 {stop}，短线仓退出",
+    ]
+
+
+def portfolio_data_warning(row: dict[str, Any]) -> str:
+    if not row:
+        return "行情数据缺失，无法给出交易条件"
+    price = num(row.get("price"))
+    high = num(row.get("high"))
+    low = num(row.get("low"))
+    warnings: list[str] = []
+    if price is not None and high is not None and price > high + 0.001:
+        warnings.append("数据异常：当前价高于日内最高价")
+    if price is not None and low is not None and price < low - 0.001:
+        warnings.append("数据异常：当前价低于日内最低价")
+    if high is not None and low is not None and high < low:
+        warnings.append("数据异常：日内最高价低于最低价")
+    return "；".join(warnings)
+
+
+def build_portfolio_decision_rule_rows(
+    portfolio: dict[str, dict[str, Any]],
+    plans: dict[str, dict[str, str]],
+    result_by_code: dict[str, dict[str, Any]],
+    checkpoint: str,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    next_check = next_checkpoint_name(checkpoint)
+    for code, holding in portfolio.items():
+        result = result_by_code.get(code, {})
+        plan = plans.get(code, {})
+        position_type = portfolio_position_type(result, plan)
+        levels = portfolio_key_levels(result)
+        actions = portfolio_action_plan(position_type, levels, next_check)
+        current_price = num(result.get("price")) or num(holding.get("current_snapshot"))
+        avg_cost = num(holding.get("avg_cost"))
+        shares = num(holding.get("shares_total"), 0) or 0
+        pnl = (current_price - avg_cost) * shares if current_price is not None and avg_cost is not None else ""
+        rows.append(
+            {
+                "时间": checkpoint,
+                "股票": f"{holding.get('name', '')} {code}".strip(),
+                "类型": position_type,
+                "当前状态": trajectory_text(result) if result else "行情未评估。",
+                "当前价": price_level(current_price),
+                "当前涨幅": result.get("pct", ""),
+                "VWAP": levels.get("第一保护线", ""),
+                "VWAP状态": "上" if result.get("is_above_vwap") is True else "下" if result.get("is_above_vwap") is False else "unavailable",
+                "高点回撤%": result.get("drawdown_from_high_pct", ""),
+                "相对板块": "强于板块" if row_float(result, "relative_strength_vs_sector") > 0 else "弱于板块" if result else "unavailable",
+                "板块": result.get("sector", ""),
+                "板块涨幅": result.get("sector_pct", ""),
+                "强势线": levels.get("强势线", ""),
+                "修复线": levels.get("修复线", ""),
+                "第一保护线": levels.get("第一保护线", ""),
+                "风险线": levels.get("风险线", ""),
+                "止损线": levels.get("止损线", ""),
+                "趋势线": levels.get("趋势线", ""),
+                "中线观察线": levels.get("中线观察线", ""),
+                "中线失效线": levels.get("中线失效线", ""),
+                "昨日低点": levels.get("昨日低点", ""),
+                "成本": holding.get("avg_cost", ""),
+                "持仓数量": holding.get("shares_total", ""),
+                "当前浮盈亏": round(pnl, 2) if pnl != "" else "",
+                "短线动作": "；".join(actions[:4]),
+                "中线动作": f"跌破 {levels.get('中线观察线') or '10日线'} 降低总仓位；跌破 {levels.get('中线失效线') or '20日线'} 重新判断 thesis",
+                "长线动作": "只看 thesis 是否失效，不因盘中单点波动改变底仓判断",
+                "下一次检查": next_check,
+                "数据提示": portfolio_data_warning(result),
+                "风险原因": result.get("risk_flags") or result.get("hard_cap_reason") or "",
+                "原计划确认条件": plan.get("planned_buy_condition", ""),
+                "原计划失效条件": plan.get("planned_sell_or_downgrade_condition", ""),
+                "是否触发风险条件": bool_text("必须处理" in position_type or "修复失败" in position_type),
+            }
+        )
+    order = {"必须处理 / 风险触发": 0, "弱于板块 / 修复失败": 1, "冲高后保护利润": 2, "强势趋势持有": 3, "正常震荡持有": 4}
+    rows.sort(key=lambda item: order.get(str(item.get("类型")), 9))
+    return rows
+
+
 def main() -> int:
     args = parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -2532,6 +2714,7 @@ def main() -> int:
     handling_rows = build_watchlist_portfolio_rows(results, watch_symbols, portfolio_rows, watch_meta)
     result_by_code = {row["code"]: row for row in results}
     portfolio_extra_rows = build_portfolio_extra_rows(portfolio_meta, plan_meta, result_by_code)
+    portfolio_decision_rows = build_portfolio_decision_rule_rows(portfolio_meta, plan_meta, result_by_code, args.checkpoint)
     tech_sector_daily_rows = build_tech_sector_daily_rows(tech_sector_rows, daily_by_symbol)
     tech_sector_stock_map = build_tech_sector_stock_map(tech_sector_rows)
 
@@ -2542,6 +2725,7 @@ def main() -> int:
     write_csv(args.out / "pullback_setups.csv", pullback_rows)
     write_csv(args.out / "watchlist_portfolio_actions.csv", handling_rows)
     write_csv(args.out / "portfolio_extra.csv", portfolio_extra_rows)
+    write_csv(args.out / "portfolio_decision_rules.csv", portfolio_decision_rows)
     write_csv(args.out / "tech_sector_daily_k.csv", tech_sector_daily_rows)
     write_csv(args.out / "tech_sector_stock_map.csv", tech_sector_stock_map)
     write_csv(args.out / "errors.csv", errors, ["symbol", "code", "name", "error"])
@@ -2580,6 +2764,7 @@ def main() -> int:
         "tech_sector_daily_row_count": len(tech_sector_daily_rows),
         "watchlist_portfolio_action_count": len(handling_rows),
         "portfolio_extra_count": len(portfolio_extra_rows),
+        "portfolio_decision_rule_count": len(portfolio_decision_rows),
         "error_count": len(errors),
         "usable_fields": field_availability["usable_fields"],
         "unusable_fields": field_availability["unusable_fields"],
@@ -2601,6 +2786,7 @@ def main() -> int:
             "pullback_setups": pullback_rows,
             "watchlist_portfolio_actions": handling_rows,
             "portfolio_extra": portfolio_extra_rows,
+            "portfolio_decision_rules": portfolio_decision_rows,
         },
     )
     (args.out / "checkpoint_decision_summary.json").write_text(

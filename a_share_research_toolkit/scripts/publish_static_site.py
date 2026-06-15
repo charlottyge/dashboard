@@ -48,6 +48,7 @@ TABLE_LABELS = {
     "candidate_scores.csv": "10:30 候选评分",
     "watchlist_portfolio_actions.csv": "10:30 自选 / 持仓处理",
     "portfolio_extra.csv": "持仓额外信息",
+    "portfolio_decision_rules.csv": "持仓交易规则",
     "morning_mainlines.csv": "上午主线",
     "candidate_morning_check.csv": "上午候选检查",
     "portfolio_morning_plan.csv": "午后预案",
@@ -67,14 +68,14 @@ TABLE_LABELS = {
 CHECKPOINT_IO = {
     "scan_1030": {
         "stage": "10:30 第一轮换手确认",
-        "input": ["market_overview.csv", "market_sector_scan.csv", "hot_board_front_core.csv", "candidate_scores.csv", "watchlist_portfolio_actions.csv", "portfolio_extra.csv"],
-        "output": ["candidate_scores.csv", "watchlist_portfolio_actions.csv", "market_sector_scan.csv"],
+        "input": ["market_overview.csv", "market_sector_scan.csv", "hot_board_front_core.csv", "candidate_scores.csv", "watchlist_portfolio_actions.csv", "portfolio_extra.csv", "portfolio_decision_rules.csv"],
+        "output": ["candidate_scores.csv", "watchlist_portfolio_actions.csv", "portfolio_decision_rules.csv", "market_sector_scan.csv"],
         "goal": "确认第一轮冲击后资金是否真正接受强线，同时把 watchlist / 持仓风险单独列出来。",
     },
     "scan_1120": {
         "stage": "11:20 上午收尾",
-        "input": ["market_overview.csv", "market_sector_scan.csv", "morning_mainlines.csv", "candidate_morning_check.csv", "portfolio_morning_plan.csv"],
-        "output": ["candidate_morning_check.csv", "morning_mainlines.csv", "portfolio_morning_plan.csv"],
+        "input": ["market_overview.csv", "market_sector_scan.csv", "morning_mainlines.csv", "candidate_morning_check.csv", "portfolio_morning_plan.csv", "portfolio_decision_rules.csv"],
+        "output": ["candidate_morning_check.csv", "morning_mainlines.csv", "portfolio_morning_plan.csv", "portfolio_decision_rules.csv"],
         "goal": "避免午前冲动追涨，检查 10:30 候选是否继续在 VWAP 上方，并准备午后验证条件。",
     },
     "scan_strategy_1430": {
@@ -85,14 +86,14 @@ CHECKPOINT_IO = {
     },
     "scan_1430": {
         "stage": "14:30-14:45 尾盘确认",
-        "input": ["market_close_confirm.csv", "market_sector_scan.csv", "sector_close_confirm.csv", "candidate_close_confirm.csv", "portfolio_close_confirm.csv"],
-        "output": ["candidate_close_confirm.csv", "sector_close_confirm.csv", "portfolio_close_confirm.csv"],
+        "input": ["market_close_confirm.csv", "market_sector_scan.csv", "sector_close_confirm.csv", "candidate_close_confirm.csv", "portfolio_close_confirm.csv", "portfolio_decision_rules.csv"],
+        "output": ["candidate_close_confirm.csv", "sector_close_confirm.csv", "portfolio_close_confirm.csv", "portfolio_decision_rules.csv"],
         "goal": "把当天强线和个股表现转成明日 watchlist，同时识别长上影、回落和持仓未修复风险。",
     },
     "scan_1510": {
         "stage": "15:10 盘后复盘",
-        "input": ["final_market.csv", "final_sectors.csv", "final_stocks.csv", "portfolio_final_review.csv", "market_sector_scan.csv"],
-        "output": ["final_stocks.csv", "final_sectors.csv", "portfolio_final_review.csv"],
+        "input": ["final_market.csv", "final_sectors.csv", "final_stocks.csv", "portfolio_final_review.csv", "portfolio_decision_rules.csv", "market_sector_scan.csv"],
+        "output": ["final_stocks.csv", "final_sectors.csv", "portfolio_final_review.csv", "portfolio_decision_rules.csv"],
         "goal": "保存当天学习样本和明日计划：哪些继续看，哪些只是情绪温度计，哪些进入风险复盘。",
     },
 }
@@ -817,6 +818,7 @@ def build_payload() -> dict:
                     "portfolio_first_impact.csv",
                     "portfolio_afternoon_status.csv",
                     "portfolio_final_review.csv",
+                    "portfolio_decision_rules.csv",
                 ],
             ),
         },

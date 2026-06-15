@@ -418,9 +418,17 @@ def build_summary(args: argparse.Namespace, context: dict[str, Any], extra: dict
         context.get("portfolio_codes", set()),
         args.checkpoint,
     )
+    result_by_code = {row.get("code"): row for row in context.get("results", []) if row.get("code")}
+    summary["_portfolio_decision_rule_rows"] = core.build_portfolio_decision_rule_rows(
+        context.get("portfolio_meta", {}),
+        context.get("plan_meta", {}),
+        result_by_code,
+        args.checkpoint,
+    )
     if extra:
         summary.update(extra)
     summary.setdefault("pullback_setup_count", len(summary["_pullback_setup_rows"]))
+    summary.setdefault("portfolio_decision_rule_count", len(summary["_portfolio_decision_rule_rows"]))
     return summary
 
 
@@ -429,7 +437,9 @@ def write_outputs(args: argparse.Namespace, tables: dict[str, list[dict[str, Any
     tech_sector_daily_rows = summary.pop("_tech_sector_daily_rows", [])
     tech_sector_stock_map = summary.pop("_tech_sector_stock_map", [])
     pullback_setup_rows = summary.pop("_pullback_setup_rows", [])
+    portfolio_decision_rule_rows = summary.pop("_portfolio_decision_rule_rows", [])
     tables.setdefault("pullback_setups", pullback_setup_rows)
+    tables.setdefault("portfolio_decision_rules", portfolio_decision_rule_rows)
     for name, rows in tables.items():
         core.write_csv(args.out / f"{name}.csv", rows)
     if tech_sector_daily_rows:

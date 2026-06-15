@@ -855,6 +855,39 @@ input {
   color: #9b4d35;
 }
 
+.key-level-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.key-level-grid span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 7px 9px;
+  color: #34464e;
+  font-size: 12px;
+}
+
+.key-level-grid b {
+  color: #172126;
+}
+
+.trigger-action-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.trigger-action-list p {
+  margin: 0;
+}
+
 .sector-analysis-groups {
   display: grid;
   gap: 16px;
@@ -1731,6 +1764,7 @@ footer {
   .stock-signal-grid,
   .sector-grid,
   .sector-analysis-grid,
+  .key-level-grid,
   .portfolio-form,
   .markdown-layout {
     grid-template-columns: 1fr;

@@ -16,6 +16,7 @@ const tableLabels = {
   candidate_scores: "10:30 候选评分",
   watchlist_portfolio_actions: "10:30 自选 / 持仓处理",
   portfolio_extra: "持仓额外信息",
+  portfolio_decision_rules: "持仓交易规则",
   morning_mainlines: "上午主线",
   candidate_morning_check: "上午候选检查",
   portfolio_morning_plan: "午后预案",
@@ -678,7 +679,8 @@ function currentWatchlistItems() {
 function portfolioSignalItems(checkpoint) {
   return mergedHoldings().map((holding) => {
     const name = holding.name || holding.stock || holding.code || "-";
-    const row = findStockContextRowInCheckpoint(checkpoint, name, holding.code);
+    const rule = findPortfolioRuleRow(checkpoint, name, holding.code);
+    const row = Object.keys(rule).length ? rule : findStockContextRowInCheckpoint(checkpoint, name, holding.code);
     const priorityItem = (checkpoint.decision?.portfolio_priority || []).find((item) => stockMatches(item.stock, name, holding.code));
     const priority = priorityItem?.priority || "P2";
     return buildStockSignal({
@@ -690,6 +692,7 @@ function portfolioSignalItems(checkpoint) {
       role: holding.role || "持仓",
       note: holding.note || "",
       row,
+      rule,
       kind: "portfolio",
     });
   });
@@ -727,15 +730,16 @@ function newCandidateItems(checkpoint) {
     });
 }
 
-function buildStockSignal({ name, code, priority, priorityItem, sector, role, note, row, kind }) {
+function buildStockSignal({ name, code, priority, priorityItem, sector, role, note, row, rule, kind }) {
   const tradeAlerts = tradeAlertTexts(row);
   const news = meaningfulExternalText(row["新闻"] || row["news"]);
   const announcement = meaningfulExternalText(row["公告"] || row["announcement"]);
   const action = stockSignalAction(priority, tradeAlerts, kind);
-  return { name, code, priority, priorityItem, sector, role, note, row, kind, tradeAlerts, news, announcement, action };
+  return { name, code, priority, priorityItem, sector, role, note, row, rule: rule || {}, kind, tradeAlerts, news, announcement, action };
 }
 
 function renderPortfolioSignalCard(item) {
+  if (Object.keys(item.rule || {}).length) return renderPortfolioRuleCard(item);
   const insight = buildPortfolioInsight(item.priorityItem || { stock: [item.name, item.code].filter(Boolean).join(" "), priority: item.priority });
   const plan = portfolioTimeframePlan(item, insight);
   const abnormal = abnormalMoveText(item);
@@ -753,6 +757,65 @@ function renderPortfolioSignalCard(item) {
       ${item.announcement ? `<p>公告：${escapeHtml(item.announcement)}</p>` : ""}
     </article>
   `;
+}
+
+function renderPortfolioRuleCard(item) {
+  const row = item.rule || {};
+  const abnormal = abnormalMoveText(item);
+  const levels = portfolioKeyLevelEntries(row);
+  const actions = portfolioActionEntries(row);
+  return `
+    <article class="stock-signal-card portfolio-signal-card ${item.priority === "P0" ? "urgent" : ""}">
+      <div class="candidate-topline">
+        <strong>${escapeHtml([item.name, item.code].filter(Boolean).join(" "))}</strong>
+        <span>${escapeHtml(row["类型"] || "持仓规则")}</span>
+      </div>
+      <p>当前状态：${escapeHtml(row["当前状态"] || stockTrendVolumeText(item))}</p>
+      <p>判断：${escapeHtml(portfolioRuleJudgement(row))}</p>
+      <div class="key-level-grid">
+        ${levels.map(([label, value]) => `<span><b>${escapeHtml(label)}</b>${escapeHtml(value || "-")}</span>`).join("")}
+      </div>
+      <div class="trigger-action-list">
+        ${actions.map((action, index) => `<p>${index + 1}. ${escapeHtml(action)}</p>`).join("")}
+      </div>
+      <p>下一次检查：${escapeHtml(row["下一次检查"] || "下一 checkpoint")}</p>
+      ${row["数据提示"] ? `<p>异动：${escapeHtml(row["数据提示"])}</p>` : abnormal ? `<p>异动：${escapeHtml(abnormal)}</p>` : ""}
+      ${item.news ? `<p>新闻：${escapeHtml(item.news)}</p>` : ""}
+      ${item.announcement ? `<p>公告：${escapeHtml(item.announcement)}</p>` : ""}
+    </article>
+  `;
+}
+
+function portfolioKeyLevelEntries(row) {
+  return [
+    ["强势线", row["强势线"]],
+    ["修复线", row["修复线"]],
+    ["第一保护线", row["第一保护线"] || row["VWAP"]],
+    ["风险线", row["风险线"]],
+    ["止损线", row["止损线"]],
+    ["趋势线", row["趋势线"]],
+    ["中线观察线", row["中线观察线"]],
+    ["中线失效线", row["中线失效线"]],
+  ].filter(([, value]) => value !== undefined && value !== "");
+}
+
+function portfolioActionEntries(row) {
+  const actions = String(row["短线动作"] || "")
+    .split(/[；;]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (row["中线动作"]) actions.push(`中线：${row["中线动作"]}`);
+  if (row["长线动作"]) actions.push(`长线：${row["长线动作"]}`);
+  return actions.length ? actions : ["数据不足，无法给出交易条件，需要人工复核。"];
+}
+
+function portfolioRuleJudgement(row) {
+  const type = row["类型"] || "持仓";
+  const pct = row["当前涨幅"] !== "" && row["当前涨幅"] !== undefined ? `当前 ${row["当前涨幅"]}%` : "";
+  const vwap = row["VWAP状态"] ? `VWAP ${row["VWAP状态"]}` : "";
+  const relative = row["相对板块"] || "";
+  const drawdown = row["高点回撤%"] !== "" && row["高点回撤%"] !== undefined ? `高点回撤 ${row["高点回撤%"]}%` : "";
+  return `${[type, pct, vwap, relative, drawdown].filter(Boolean).join("，")}。`;
 }
 
 function renderWatchlistSignalCard(item) {
@@ -950,6 +1013,10 @@ function stockSignalAction(priority, alerts, kind) {
 function findStockContextRowInCheckpoint(checkpoint, name, code = "") {
   const rows = (checkpoint?.tables || []).flatMap((table) => table.rows || []);
   return rows.find((row) => stockMatches(row["股票"] || `${row.name || ""} ${row.code || ""}`, name, code)) || {};
+}
+
+function findPortfolioRuleRow(checkpoint, name, code = "") {
+  return tableRows(checkpoint, "portfolio_decision_rules.csv").find((row) => stockMatches(row["股票"] || "", name, code)) || {};
 }
 
 function stockMatches(input, name, code = "") {
