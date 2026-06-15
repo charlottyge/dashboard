@@ -181,11 +181,11 @@ function renderActionBrief(checkpoint) {
       <div class="brief-kicker">${escapeHtml(checkpoint.label)}</div>
       <div class="overview-grid">
         ${renderMarketOverviewCard(checkpoint, decision, demo)}
-        ${renderAiAnalysisCard(checkpoint)}
         ${renderSectorOverviewCard(checkpoint)}
         ${renderPortfolioOverviewCard(checkpoint)}
         ${renderWatchlistOverviewCard(checkpoint)}
         ${renderNewCandidateOverviewCard(checkpoint)}
+        ${renderAiActionPanel(checkpoint)}
       </div>
     </section>
     <section class="brief">
@@ -212,11 +212,15 @@ function renderActionBrief(checkpoint) {
 }
 
 function renderMarketOverviewCard(checkpoint, decision, demo) {
+  const analysis = checkpoint.ai_analysis || {};
   return `
     <article class="overview-card overview-card-wide">
       <h3>市场数据 + 盘面分析</h3>
       ${renderMarketSnapshot(checkpoint)}
-      ${renderAnalysisMarkdown(analysisTextForCheckpoint(checkpoint, decision, demo))}
+      ${renderAiReviewParagraphs([
+        analysis.summary || analysis.market_analysis || analysisTextForCheckpoint(checkpoint, decision, demo),
+        analysis.index_breadth_analysis,
+      ])}
     </article>
   `;
 }
@@ -268,12 +272,12 @@ function renderAiAnalysisList(title, items) {
 function renderSectorOverviewCard(checkpoint) {
   const sectors = sectorRowsForCheckpoint(checkpoint);
   const top = sectors.slice(0, 5).map((row) => row["板块"] || row["name"]).filter(Boolean);
+  const analysis = checkpoint.ai_analysis || {};
   return `
     <article class="overview-card">
       <h3>板块分析概况</h3>
       <p>${escapeHtml(top.length ? `当前热门板块：${top.join("、")}。` : "当前板块强度不清晰。")}</p>
-      <p>${escapeHtml(sectorChangeText(checkpoint))}</p>
-      <p>${escapeHtml(sectorFocusText(checkpoint))}</p>
+      ${renderAiReviewParagraphs([analysis.sector_analysis || `${sectorChangeText(checkpoint)} ${sectorFocusText(checkpoint)}`])}
     </article>
   `;
 }
@@ -281,25 +285,25 @@ function renderSectorOverviewCard(checkpoint) {
 function renderPortfolioOverviewCard(checkpoint) {
   const items = portfolioSignalItems(checkpoint);
   const actionItems = items.filter((item) => item.priority === "P0" || item.tradeAlerts.length).slice(0, 3);
+  const analysis = checkpoint.ai_analysis || {};
   return `
     <article class="overview-card">
       <h3>持仓概况</h3>
       <p>${escapeHtml(items.length ? `当前持仓 ${items.length} 只，${actionItems.length} 只需要重点看。` : "当前没有读取到持仓。")}</p>
-      <p>${escapeHtml(portfolioChangeText(checkpoint, items))}</p>
-      <p>${escapeHtml(actionItems.length ? `重点：${actionItems.map((item) => `${item.name}（${item.action}）`).join("；")}。` : "暂无必须处理动作，继续看是否强于所属板块。")}</p>
+      ${renderAiReviewParagraphs([analysis.portfolio_analysis || `${portfolioChangeText(checkpoint, items)} ${actionItems.length ? `重点：${actionItems.map((item) => `${item.name}（${item.action}）`).join("；")}。` : "暂无必须处理动作，继续看是否强于所属板块。"}`])}
     </article>
   `;
 }
 
 function renderWatchlistOverviewCard(checkpoint) {
   const items = watchlistSignalItems(checkpoint);
-  const focus = items.filter((item) => item.priority === "P0" || item.priority === "P1").slice(0, 4);
+  const focus = items.filter((item) => watchlistBuyRating(item).startsWith("A")).slice(0, 4);
+  const analysis = checkpoint.ai_analysis || {};
   return `
     <article class="overview-card">
       <h3>Watchlist 概况</h3>
-      <p>${escapeHtml(items.length ? `最近日期 watchlist ${items.length} 只，重点 ${focus.length} 只。` : "没有读取到最近日期 watchlist。")}</p>
-      <p>${escapeHtml(watchlistChangeText(checkpoint, items))}</p>
-      <p>${escapeHtml(focus.length ? `重点关注：${focus.map((item) => `${item.name}${item.sector ? ` / ${item.sector}` : ""}`).join("、")}。` : "暂无 P0/P1 重点项。")}</p>
+      <p>${escapeHtml(items.length ? `最近日期 watchlist ${items.length} 只，A 评级 ${focus.length} 只。` : "没有读取到最近日期 watchlist。")}</p>
+      ${renderAiReviewParagraphs([analysis.watchlist_analysis || `${watchlistChangeText(checkpoint, items)} ${focus.length ? `重点关注：${focus.map((item) => `${item.name}${item.sector ? ` / ${item.sector}` : ""}`).join("、")}。` : "暂无 A 评级重点项。"}`])}
     </article>
   `;
 }
@@ -307,13 +311,55 @@ function renderWatchlistOverviewCard(checkpoint) {
 function renderNewCandidateOverviewCard(checkpoint) {
   const items = newCandidateItems(checkpoint);
   const groups = candidateGroups(items);
+  const pullbacks = items.filter((item) => item.isPullback);
+  const analysis = checkpoint.ai_analysis || {};
   return `
     <article class="overview-card">
       <h3>当日新增候选概况</h3>
-      <p>${escapeHtml(items.length ? `当前新增候选 ${items.length} 只；重点研究 ${groups.research.length} 只，观察 ${groups.observe.length} 只。` : "当前没有新增候选。")}</p>
-      <p>${escapeHtml(candidateChangeText(checkpoint, items) || "较上一时间点：没有明显新增/退出变化。")}</p>
-      <p>${escapeHtml(groups.research.length ? `重点：${groups.research.map((item) => item.stock).join("、")}。` : "没有直接升级为重点研究的新增候选。")}</p>
+      <p>${escapeHtml(items.length ? `当前新增候选 ${items.length} 只；当日回踩观察 ${pullbacks.length} 只，强板块强个股 ${groups.research.length} 只。` : "当前没有新增候选。")}</p>
+      ${renderAiReviewParagraphs([analysis.candidate_analysis || `${candidateChangeText(checkpoint, items) || "较上一时间点：没有明显新增/退出变化。"} ${groups.research.length ? `重点：${groups.research.map((item) => item.stock).join("、")}。` : "没有直接升级为重点研究的新增候选。"}`])}
     </article>
+  `;
+}
+
+function renderAiReviewParagraphs(texts) {
+  const cleaned = texts.map(cleanAiText).filter(Boolean);
+  if (!cleaned.length) return "";
+  return `<div class="ai-inline-review">${cleaned.map((text) => `<p>${escapeHtml(text)}</p>`).join("")}</div>`;
+}
+
+function cleanAiText(text) {
+  return String(text || "")
+    .replace(/(?:指数：)?(?:上证|深证成指|创业板|科创50|上证50|中证2000|中小100)[^。；]*[。；]/g, "")
+    .replace(/(?:涨跌家数|涨停\/跌停|成交额|运行时间|数据源|来源|asof|checkpoint)[^。；]*[。；]/gi, "")
+    .replace(/AI 分析|深度分析|本时段|当前 checkpoint/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function renderAiActionPanel(checkpoint) {
+  const analysis = checkpoint.ai_analysis || {};
+  if (!analysis.risk_warnings?.length && !analysis.next_validation?.length && !analysis.do_not_do?.length) return "";
+  return `
+    <article class="overview-card overview-card-wide ai-action-card">
+      <h3>风险 / 下一步 / 不要做</h3>
+      <div class="ai-action-strip">
+      ${renderAiMiniList("风险", analysis.risk_warnings)}
+      ${renderAiMiniList("下一步", analysis.next_validation)}
+      ${renderAiMiniList("不要做", analysis.do_not_do)}
+      </div>
+    </article>
+  `;
+}
+
+function renderAiMiniList(title, items) {
+  const safeItems = Array.isArray(items) ? items.filter(Boolean).slice(0, 3) : [];
+  if (!safeItems.length) return "";
+  return `
+    <section>
+      <strong>${escapeHtml(title)}</strong>
+      <ul>${safeItems.map((item) => `<li>${escapeHtml(cleanAiText(item) || item)}</li>`).join("")}</ul>
+    </section>
   `;
 }
 
@@ -350,11 +396,6 @@ function renderMarketSnapshot(checkpoint) {
   const summary = checkpoint.summary || {};
   const indexText = market["指数涨幅"] || indexPartsFromMarket(market, true).join(" / ");
   const cells = [
-    ["时间", market["时间"] || checkpoint.label || "-"],
-    ["目标分时", summary.asof_time || summary.target_checkpoint || "-"],
-    ["实际分时", summary.actual_data_time || "-"],
-    ["运行时间", summary.run_at || checkpoint.modified || "-"],
-    ["快照模式", snapshotModeText(summary.snapshot_mode)],
     ["指数", indexText || "-"],
     ["成交额", formatAmount(market["成交额预估"] || market["成交额"] || "")],
     ["涨跌家数", market["涨跌家数"] || "-"],
@@ -521,18 +562,32 @@ function sectorTeachingText(name) {
 function renderWatchlistWorkbench(checkpoint) {
   const items = watchlistSignalItems(checkpoint);
   if (!items.length) return '<p class="empty">暂无最近日期 watchlist 数据。</p>';
-  const focus = items.filter(isWorthWatching).sort(watchlistSort);
-  const hidden = items.filter((item) => !isWorthWatching(item)).sort(watchlistSort);
+  const focusItems = items.filter(isWorthWatching).sort(watchlistSort);
+  const backupItems = items.filter((item) => !isWorthWatching(item)).sort(watchlistSort);
+  const focusA = focusItems.filter(isBuyRatingA);
+  const focusHidden = focusItems.filter((item) => !isBuyRatingA(item));
+  const backupA = backupItems.filter(isBuyRatingA);
+  const backupHidden = backupItems.filter((item) => !isBuyRatingA(item));
   return `
-    ${focus.length ? `<div class="stock-signal-grid">${focus.map(renderWatchlistSignalCard).join("")}</div>` : '<p class="empty">当前 watchlist 暂无明显值得重点关注的个股。</p>'}
-    ${
-      hidden.length
-        ? `<details class="collapsed-stock-list">
-            <summary>展开其他 watchlist（${hidden.length} 只）</summary>
-            <div class="stock-signal-grid">${hidden.map(renderWatchlistSignalCard).join("")}</div>
-          </details>`
-        : ""
-    }
+    ${renderWatchlistBucket("重点", focusA, focusHidden)}
+    ${renderWatchlistBucket("备选", backupA, backupHidden)}
+  `;
+}
+
+function renderWatchlistBucket(title, visible, hidden) {
+  return `
+    <section class="watchlist-bucket">
+      <h4>${escapeHtml(title)}</h4>
+      ${visible.length ? `<div class="stock-signal-grid">${visible.map(renderWatchlistSignalCard).join("")}</div>` : '<p class="empty">暂无 A 评级。</p>'}
+      ${
+        hidden.length
+          ? `<details class="collapsed-stock-list">
+              <summary>展开${escapeHtml(title)}里的非 A 评级（${hidden.length} 只）</summary>
+              <div class="stock-signal-grid">${hidden.map(renderWatchlistSignalCard).join("")}</div>
+            </details>`
+          : ""
+      }
+    </section>
   `;
 }
 
@@ -542,9 +597,19 @@ function renderNewCandidatesWorkbench(checkpoint) {
   if (!items.length) return '<p class="empty">当前时段没有新增候选。</p>';
   return `
     <div class="candidate-layers">
-      ${renderCandidateLayer("A. 可重点研究", "板块强、个股强、承接相对清楚；仍然不是直接买入。", groups.research)}
-      ${renderCandidateLayer("B. 继续观察", "有异动或在自选池，但还需要下一 checkpoint 证明。", groups.observe)}
-      ${renderCandidateLayer("C. 不建议追高", "涨幅过高、VWAP 失守、长上影或承接未知。", groups.avoid)}
+      ${renderCandidateLayer("当日回踩观察", "回踩且待确认，重点看 VWAP、均线和板块是否继续承接。", groups.pullbackWatch)}
+      ${renderCandidateLayer("强板块、强个股、有承接", "板块强、个股强、承接相对清楚；仍然不是直接买入。", groups.research)}
+      ${
+        groups.hidden.length
+          ? `<details class="collapsed-stock-list">
+              <summary>展开其他新增候选（${groups.hidden.length} 只）</summary>
+              <div class="candidate-layers compact">
+                ${renderCandidateLayer("继续观察", "有异动但还需要下一 checkpoint 证明。", groups.observe)}
+                ${renderCandidateLayer("不建议追高", "涨幅过高、VWAP 失守、长上影或承接未知。", groups.avoid)}
+              </div>
+            </details>`
+          : ""
+      }
     </div>
   `;
 }
@@ -592,7 +657,9 @@ function watchlistSignalItems(checkpoint) {
 function newCandidateItems(checkpoint) {
   const watchKeys = new Set(currentWatchlistItems().map((item) => normalizeStockKey(`${item.name || ""}${item.code || ""}`)));
   const holdKeys = new Set(mergedHoldings().map((item) => normalizeStockKey(`${item.name || ""}${item.code || ""}`)));
-  return candidateRowsForCheckpoint(checkpoint).rows
+  const standardRows = candidateRowsForCheckpoint(checkpoint).rows;
+  const pullbackRows = tableRows(checkpoint, "pullback_setups.csv");
+  return [...pullbackRows, ...standardRows]
     .map(candidateInsight)
     .filter((item) => {
       const key = normalizeStockKey(item.stock);
@@ -717,6 +784,10 @@ function isWorthWatching(item) {
   if (vwap === "上" && (strong || pct >= 2)) return true;
   if (/放量突破|缩量回踩|策略|重点|核心/.test(source) && vwap !== "下") return true;
   return false;
+}
+
+function isBuyRatingA(item) {
+  return watchlistBuyRating(item).startsWith("A");
 }
 
 function watchlistSort(a, b) {
@@ -2005,10 +2076,19 @@ function renderCandidateDashboard(checkpoint) {
 }
 
 function candidateGroups(items) {
+  const pullbackWatch = [];
   const research = [];
   const observe = [];
   const avoid = [];
+  const used = new Set();
   for (const item of items) {
+    if (item.isPullback && /待确认|只观察/.test(item.category || "")) {
+      pullbackWatch.push({ ...item, coach: "回踩观察只看承接确认，不提前当成买点。" });
+      used.add(item.key);
+    }
+  }
+  for (const item of items) {
+    if (used.has(item.key)) continue;
     if (item.riskLevel === "high") {
       avoid.push({ ...item, coach: "先等回落承接或尾盘确认，不要把高风险候选当买点。" });
     } else if (research.length < 3 && item.riskLevel === "low" && candidateStrengthScore(item) >= 2) {
@@ -2019,11 +2099,12 @@ function candidateGroups(items) {
       avoid.push({ ...item, coach: "信息优先级靠后，不要因为候选数量多就分散注意力。" });
     }
   }
-  return { research, observe, avoid };
+  return { pullbackWatch: pullbackWatch.slice(0, 8), research, observe, avoid, hidden: observe.concat(avoid) };
 }
 
 function candidateStrengthScore(item) {
   let score = 0;
+  if (item.isPullback && item.category === "回踩确认") score += 2;
   if (item.source.includes("放量突破") || item.source.includes("策略")) score += 1;
   if (item.vwap === "上") score += 1;
   if (num(item.pct) > 0 && num(item.pct) < 9) score += 1;
@@ -2070,16 +2151,23 @@ function candidateInsight(row) {
   const sector = row["板块"] || row["匹配板块"] || row["sector"] || "";
   const pct = row["当前涨幅"] || row["当前涨幅%"] || row["收盘涨幅"] || row["pct"] || "";
   const vwap = candidateVwapState(row);
+  const isPullback = Boolean(row["回踩类型"] || row["setup"]);
   const source = row["来源"] || row["来源(缩量回踩/放量突破/watchlist/portfolio)"] || row["策略"] || row["10:30来源"] || "";
-  const reason = row["走势自然语言"] || row["命中原因"] || row["setup_pass_reasons"] || source || "当前时段候选";
+  const reason = isPullback
+    ? [row["回踩类型"], row["状态"], row["下一步"]].filter(Boolean).join("；")
+    : row["走势自然语言"] || row["命中原因"] || row["setup_pass_reasons"] || source || "当前时段候选";
   const risk = candidateRisk(row);
   return {
+    key: normalizeStockKey(stock),
     stock,
     sector,
     pct,
     vwap,
     source,
     reason,
+    isPullback,
+    category: row["分类"] || "",
+    status: row["状态"] || "",
     riskLevel: risk.level,
     riskLabel: risk.label,
     riskText: risk.text,
@@ -2094,11 +2182,13 @@ function candidateRisk(row) {
   const candle = row["日K形态"] || "";
   const source = row["来源"] || row["来源(缩量回踩/放量突破/watchlist/portfolio)"] || row["策略"] || "";
   const riskMark = row["风险标记"] || "";
+  const pullbackRisk = row["风险"] || "";
   if (vwap === "下") flags.push("VWAP 下方，承接不足");
   if (drawdown <= -5) flags.push(`高点回撤 ${drawdown}%`);
   if (candle.includes("长上影")) flags.push("长上影，追高风险");
   if (pct >= 9) flags.push("涨幅接近涨停，不能追高");
   if (riskMark && riskMark !== "normal") flags.push(riskMark);
+  if (pullbackRisk) flags.push(pullbackRisk);
   if (source.includes("watchlist") && !source.includes("放量突破")) flags.push("自选观察，仍需触发条件");
   if (!flags.length) {
     return { level: "low", label: "风险低", text: "未见明显回撤或 VWAP 失守，继续看板块强度和成交确认。" };
