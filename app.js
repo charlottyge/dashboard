@@ -5,6 +5,7 @@ const tableLabels = {
   market_overview: "市场概览",
   market_sector_scan: "板块扫描",
   hot_board_front_core: "强板块中军 / 前排",
+  pullback_setups: "热门股回踩观察",
   market_temperature: "竞价温度",
   sector_strength: "竞价板块强度",
   yesterday_strong_lines: "昨日强线竞价",
@@ -196,6 +197,10 @@ function renderActionBrief(checkpoint) {
       ${renderMarketSectorsSection(checkpoint, decision)}
     </section>
     <section class="brief">
+      <h3>热门股回踩观察</h3>
+      ${renderPullbackWorkbench(checkpoint)}
+    </section>
+    <section class="brief">
       <h3>Watchlist</h3>
       ${renderWatchlistWorkbench(checkpoint)}
     </section>
@@ -342,9 +347,14 @@ function renderMarketSnapshot(checkpoint) {
   const market = ["market_overview.csv", "market_close_confirm.csv", "final_market.csv"]
     .map((name) => firstTableRow(checkpoint, name))
     .find((row) => Object.keys(row).length) || {};
+  const summary = checkpoint.summary || {};
   const indexText = market["指数涨幅"] || indexPartsFromMarket(market, true).join(" / ");
   const cells = [
     ["时间", market["时间"] || checkpoint.label || "-"],
+    ["目标分时", summary.asof_time || summary.target_checkpoint || "-"],
+    ["实际分时", summary.actual_data_time || "-"],
+    ["运行时间", summary.run_at || checkpoint.modified || "-"],
+    ["快照模式", snapshotModeText(summary.snapshot_mode)],
     ["指数", indexText || "-"],
     ["成交额", formatAmount(market["成交额预估"] || market["成交额"] || "")],
     ["涨跌家数", market["涨跌家数"] || "-"],
@@ -363,7 +373,15 @@ function renderMarketSnapshot(checkpoint) {
         )
         .join("")}
     </div>
+    ${summary.snapshot_warning ? `<p class="snapshot-warning">${escapeHtml(summary.snapshot_warning)}</p>` : ""}
   `;
+}
+
+function snapshotModeText(mode) {
+  if (mode === "historical_intraday") return "历史分时回看";
+  if (mode === "live_preview") return "实时预览";
+  if (mode === "live_checkpoint") return "实时 checkpoint";
+  return mode || "-";
 }
 
 function indexPartsFromMarket(market, includeMissing = false) {
@@ -428,6 +446,68 @@ function renderMarketSectorsSection(checkpoint, decision) {
       ${renderMainlineGroup("走弱 / 不再主攻", (decision.weakening_mainlines || []).slice(0, 4), "weak")}
       ${renderMainlineGroup("新改善方向", (decision.new_improving_lines || []).slice(0, 4), "improving")}
     </div>
+  `;
+}
+
+function renderPullbackWorkbench(checkpoint) {
+  const rows = tableRows(checkpoint, "pullback_setups.csv");
+  if (!rows.length) {
+    return '<p class="empty">暂无热门股回踩观察。只把曾经强过、板块还没死、回踩关键线附近的个股放进这里。</p>';
+  }
+  const groups = [
+    ["已确认", rows.filter((row) => row["分类"] === "回踩确认")],
+    ["待确认", rows.filter((row) => row["分类"] === "回踩待确认" || row["分类"] === "只观察")],
+    ["失败/剔除", rows.filter((row) => row["分类"] === "失败/剔除")],
+  ].filter(([, items]) => items.length);
+  return `
+    <div class="section-note">回踩确认 ≠ 立即买入；它只表示强股从“不可追高”变成“有观察价值”。板块弱、跌破均线、只因跌多反弹的，不算机会。</div>
+    <div class="pullback-groups">
+      ${groups.map(([title, items]) => renderPullbackGroup(title, items)).join("")}
+    </div>
+  `;
+}
+
+function renderPullbackGroup(title, rows) {
+  return `
+    <section class="pullback-group">
+      <div class="pullback-group-title">
+        <h4>${escapeHtml(title)}</h4>
+        <span>${escapeHtml(rows.length)} 条</span>
+      </div>
+      <div class="stock-signal-grid">
+        ${rows.slice(0, title === "失败/剔除" ? 4 : 8).map(renderPullbackCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderPullbackCard(row) {
+  const stock = row["股票"] || "-";
+  const metrics = [
+    row["当前涨幅"] !== "" ? `涨幅 ${row["当前涨幅"]}%` : "",
+    row["板块排名"] !== "" ? `板块 #${row["板块排名"]}` : "",
+    row["分数"] !== "" ? `分数 ${row["分数"]}` : "",
+  ].filter(Boolean);
+  const lines = [
+    row["MA5"] ? `MA5 ${row["MA5"]}` : "",
+    row["MA10"] ? `MA10 ${row["MA10"]}` : "",
+    row["MA20"] ? `MA20 ${row["MA20"]}` : "",
+    row["VWAP"] ? `VWAP ${row["VWAP"]}` : "",
+    row["上午低点"] ? `低点 ${row["上午低点"]}` : "",
+  ].filter(Boolean);
+  return `
+    <article class="stock-signal-card pullback-card ${row["分类"] === "回踩确认" ? "urgent" : ""}">
+      <strong>${escapeHtml(stock)}</strong>
+      <span>${escapeHtml([row["板块"], row["回踩类型"]].filter(Boolean).join(" · "))}</span>
+      <p>${escapeHtml(row["走势自然语言"] || row["状态"] || "")}</p>
+      <div class="pill-row compact">
+        ${metrics.map((item) => `<span class="pill">${escapeHtml(item)}</span>`).join("")}
+      </div>
+      <em>状态：${escapeHtml(row["状态"] || row["分类"] || "-")} · ${escapeHtml(row["VWAP状态"] || "")}</em>
+      <em>关键线：${escapeHtml(lines.join(" / ") || "-")}</em>
+      <em>下一步：${escapeHtml(row["下一步"] || "-")}</em>
+      ${row["风险"] ? `<em class="risk-text">风险：${escapeHtml(row["风险"])}</em>` : ""}
+    </article>
   `;
 }
 

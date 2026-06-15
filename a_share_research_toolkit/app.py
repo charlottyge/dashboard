@@ -175,6 +175,8 @@ def build_intraday_job(payload: dict) -> dict:
         "--no-push",
         "--no-commit",
     ]
+    if payload.get("asof_time"):
+        command.extend(["--asof-time", str(payload["asof_time"])])
     if payload.get("limit"):
         command.extend(["--limit", str(payload["limit"])])
     if payload.get("max_workers"):

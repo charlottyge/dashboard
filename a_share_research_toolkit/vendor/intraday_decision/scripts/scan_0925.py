@@ -40,13 +40,11 @@ def main() -> int:
     portfolio_meta = context["portfolio_meta"]
     amount_ranks = common.sector_amount_ranks(sectors)
 
-    market = core.fetch_market_overview(quotes)
+    market = core.fetch_market_overview(quotes, args)
     market_temperature = [
         {
             "时间": CHECKPOINT,
-            "上证开盘": market.get("上证", ""),
-            "创业板开盘": market.get("创业板", ""),
-            "科创50开盘": market.get("科创50", ""),
+            **{f"{label}开盘": market.get(label, "") for label in core.INDEX_SYMBOLS.values()},
             "涨停数": str(market.get("涨停/跌停", "")).split("/")[0] if market.get("涨停/跌停") else "",
             "跌停数": str(market.get("涨停/跌停", "")).split("/")[1] if "/" in str(market.get("涨停/跌停", "")) else "",
             "数据说明": "open fields from live quote snapshot",

@@ -44,6 +44,7 @@ TABLE_LABELS = {
     "market_overview.csv": "市场概览",
     "market_sector_scan.csv": "板块扫描",
     "hot_board_front_core.csv": "强板块中军 / 前排",
+    "pullback_setups.csv": "热门股回踩观察",
     "candidate_scores.csv": "10:30 候选评分",
     "watchlist_portfolio_actions.csv": "10:30 自选 / 持仓处理",
     "portfolio_extra.csv": "持仓额外信息",
@@ -105,6 +106,12 @@ PORTFOLIO_CODE_MAP = {
     "彩虹股份": "600707",
     "彩虹集团": "600707",
     "南大光电": "300346",
+    "厦门钨业": "600549",
+    "华亚智能": "003043",
+    "欧莱新材": "688530",
+    "烽火通信": "600498",
+    "蓝箭电子": "301348",
+    "甘李药业": "603087",
 }
 
 
@@ -192,7 +199,7 @@ def csv_tables(directory: Path) -> list[dict]:
 
 
 def _is_candidate_table(name: str) -> bool:
-    return name.startswith("candidate_") or name == "candidate_scores.csv" or name == "strategy_candidates.csv"
+    return name.startswith("candidate_") or name in {"candidate_scores.csv", "strategy_candidates.csv", "pullback_setups.csv"}
 
 
 def list_recent_exports(limit: int = 80, start_date: str = DEFAULT_START_DAY) -> list[dict]:
@@ -660,6 +667,9 @@ def load_portfolio() -> dict:
         except Exception as exc:
             return {"source": source, "error": str(exc), "base_holdings": []}
     latest_date, _ = _latest_dated_markdown_block(DEFAULT_PORTFOLIO_MD)
+    row_latest_date = max((str(row.get("date") or "") for row in rows if row.get("date")), default="")
+    if row_latest_date:
+        latest_date = row_latest_date
     result = {
         "source": source,
         "modified": modified(DEFAULT_PORTFOLIO_MD) if DEFAULT_PORTFOLIO_MD.exists() else "",

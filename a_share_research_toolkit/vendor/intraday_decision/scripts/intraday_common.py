@@ -24,6 +24,7 @@ def parse_common_args(description: str, checkpoint: str, default_dir_name: str) 
     parser.add_argument("--investment-dir", type=Path, default=core.DEFAULT_INVESTMENT_DIR)
     parser.add_argument("--out", type=Path, default=Path(f"{default_dir_name}_{core.TODAY}"))
     parser.add_argument("--checkpoint", default=checkpoint)
+    parser.add_argument("--asof-time", default="", help="Optional HH:MM cutoff for intraday minute metrics; defaults to checkpoint.")
     parser.add_argument("--previous-root", type=Path, help="Directory containing prior checkpoint output folders")
     parser.add_argument("--top-sector-rank", type=int, default=10)
     parser.add_argument("--pullback-sector-rank", type=int, default=15)
@@ -128,6 +129,10 @@ def load_universe(args: argparse.Namespace, include_intraday_eval: bool = True) 
                 if done % 500 == 0:
                     print(f"evaluated {done}/{len(quotes)}")
 
+    if results:
+        sectors, sector_stats = core.aggregate_sector_snapshot(sectors, results)
+        core.apply_sector_snapshot_to_results(results, sectors)
+
     return {
         "args": args,
         "sectors": sectors,
@@ -222,7 +227,7 @@ def sector_amount_ranks(sectors: list[core.Sector]) -> dict[str, int]:
 
 
 def standard_market_overview(args: argparse.Namespace, context: dict[str, Any]) -> list[dict[str, Any]]:
-    row = core.fetch_market_overview(context.get("quotes", []))
+    row = core.fetch_market_overview(context.get("quotes", []), args, context.get("results", []))
     row["时间"] = args.checkpoint
     return [row]
 
@@ -283,6 +288,15 @@ def add_standard_market_tables(args: argparse.Namespace, context: dict[str, Any]
     tables.setdefault("market_overview", standard_market_overview(args, context))
     tables.setdefault("market_sector_scan", standard_market_sector_scan(args, context))
     tables.setdefault("hot_board_front_core", hot_board_front_core(args, context))
+    tables.setdefault(
+        "pullback_setups",
+        core.build_pullback_setup_rows(
+            context.get("results", []),
+            context.get("watch_symbols", set()),
+            context.get("portfolio_codes", set()),
+            args.checkpoint,
+        ),
+    )
     return tables
 
 
@@ -370,6 +384,7 @@ def build_summary(args: argparse.Namespace, context: dict[str, Any], extra: dict
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "checkpoint": args.checkpoint,
         "data_timestamp": core.TODAY,
+        **core.summary_snapshot_fields(args, context.get("results", [])),
         "stock_pool": args.pool,
         "source_chain": sector_source_chain + quote_source_chain + ["Sina daily KLine", "Sina CN_MinlineService"],
         "sector_source_chain": sector_source_chain,
@@ -397,8 +412,15 @@ def build_summary(args: argparse.Namespace, context: dict[str, Any], extra: dict
     }
     summary["_tech_sector_daily_rows"] = context.get("tech_sector_daily_rows", [])
     summary["_tech_sector_stock_map"] = context.get("tech_sector_stock_map", [])
+    summary["_pullback_setup_rows"] = core.build_pullback_setup_rows(
+        context.get("results", []),
+        context.get("watch_symbols", set()),
+        context.get("portfolio_codes", set()),
+        args.checkpoint,
+    )
     if extra:
         summary.update(extra)
+    summary.setdefault("pullback_setup_count", len(summary["_pullback_setup_rows"]))
     return summary
 
 
@@ -406,6 +428,8 @@ def write_outputs(args: argparse.Namespace, tables: dict[str, list[dict[str, Any
     args.out.mkdir(parents=True, exist_ok=True)
     tech_sector_daily_rows = summary.pop("_tech_sector_daily_rows", [])
     tech_sector_stock_map = summary.pop("_tech_sector_stock_map", [])
+    pullback_setup_rows = summary.pop("_pullback_setup_rows", [])
+    tables.setdefault("pullback_setups", pullback_setup_rows)
     for name, rows in tables.items():
         core.write_csv(args.out / f"{name}.csv", rows)
     if tech_sector_daily_rows:

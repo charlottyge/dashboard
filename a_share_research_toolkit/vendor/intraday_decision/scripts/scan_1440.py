@@ -35,11 +35,12 @@ def main() -> int:
     prior_by_code = {str(row.get("股票", "")).split()[-1]: row for row in prior_1030 if row.get("股票")}
     rank_1330 = {row.get("板块"): row.get("13:30排名") for row in prior_1330}
 
-    market_overview = core.fetch_market_overview(context["quotes"])
+    market_overview = core.fetch_market_overview(context["quotes"], args, results)
+    index_text = "; ".join(f"{label} {market_overview.get(label, '')}" for label in core.INDEX_SYMBOLS.values())
     market_rows = [
         {
             "时间": CHECKPOINT,
-            "指数涨幅": f"上证 {market_overview.get('上证', '')}; 创业板 {market_overview.get('创业板', '')}; 科创50 {market_overview.get('科创50', '')}",
+            "指数涨幅": index_text,
             "成交额": market_overview.get("成交额预估", ""),
             "涨跌家数": market_overview.get("涨跌家数", ""),
             "涨停/跌停": market_overview.get("涨停/跌停", ""),

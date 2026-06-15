@@ -39,6 +39,7 @@ CHECKPOINT_SCRIPTS = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run intraday checkpoint, publish static dashboard, and push GitHub Pages.")
     parser.add_argument("--checkpoint", default="", help="Checkpoint such as 09:45, 10:30, 14:30, 1510.")
+    parser.add_argument("--asof-time", default="", help="Optional HH:MM cutoff for intraday minute metrics; defaults to checkpoint.")
     parser.add_argument("--strategy", action="store_true", help="Run strategy package only.")
     parser.add_argument("--date", default=date.today().isoformat(), help="Report date, default today.")
     parser.add_argument("--pool", default="all-a", choices=["all-a", "watchlist"])
@@ -111,6 +112,8 @@ def scan_command(config: dict, report_date: str, checkpoint: str, args: argparse
         command.extend(["--investment-dir", str(config["investment_dir"])])
     if checkpoint not in {"09:25", "0925", "09:45", "0945", "10:30", "1030"}:
         command.extend(["--previous-root", str(export_root / report_date)])
+    if args.asof_time:
+        command.extend(["--asof-time", str(args.asof_time)])
     if args.limit:
         command.extend(["--limit", str(args.limit)])
     if args.max_workers:

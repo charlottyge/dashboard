@@ -503,7 +503,7 @@ input {
 
 .market-snapshot {
   display: grid;
-  grid-template-columns: 110px minmax(260px, 1.7fr) repeat(3, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 10px;
 }
 
@@ -529,6 +529,13 @@ input {
   color: #172126;
   font-size: 14px;
   line-height: 1.35;
+}
+
+.snapshot-warning {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .summary-grid {
@@ -800,6 +807,51 @@ input {
   color: var(--muted);
   font-size: 12px;
   font-style: normal;
+}
+
+.stock-signal-card .risk-text {
+  color: #9b4d35;
+}
+
+.pullback-groups {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.pullback-group {
+  display: grid;
+  gap: 10px;
+}
+
+.pullback-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pullback-group-title h4 {
+  margin: 0;
+}
+
+.pullback-group-title span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pullback-card .pill-row {
+  margin-top: 10px;
+}
+
+.pill-row.compact {
+  gap: 6px;
+}
+
+.pill-row.compact .pill {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 .collapsed-stock-list {

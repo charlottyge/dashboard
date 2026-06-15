@@ -33,11 +33,12 @@ def main() -> int:
     close_by_code = {code_from_stock(row.get("股票", "")): row for row in prior_1440}
     result_by_code = {row["code"]: row for row in results}
 
-    market = core.fetch_market_overview(context["quotes"])
+    market = core.fetch_market_overview(context["quotes"], args, results)
+    index_text = "; ".join(f"{label} {market.get(label, '')}" for label in core.INDEX_SYMBOLS.values())
     final_market = [
         {
             "时间": CHECKPOINT,
-            "指数": f"上证 {market.get('上证', '')}; 创业板 {market.get('创业板', '')}; 科创50 {market.get('科创50', '')}",
+            "指数": index_text,
             "成交额": market.get("成交额预估", ""),
             "涨跌家数": market.get("涨跌家数", ""),
             "涨停/跌停": market.get("涨停/跌停", ""),

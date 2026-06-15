@@ -157,6 +157,7 @@ function bindEvents() {
     startJob("/api/run/intraday", {
       date: document.getElementById("intraday-date").value,
       checkpoint: document.getElementById("intraday-checkpoint").value,
+      asof_time: document.getElementById("intraday-asof-time").value,
       pool: document.getElementById("intraday-pool").value,
       limit: Number(document.getElementById("intraday-limit").value || 0),
     }).catch((error) => log(error.message));

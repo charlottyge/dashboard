@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import decision_summary
 
@@ -23,7 +24,16 @@ SINA_QUOTES = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.
 SINA_KLINE = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"
 SINA_MINLINE = "https://quotes.sina.cn/cn/api/openapi.php/CN_MinlineService.getMinlineData"
 SINA_SECTORS = "https://vip.stock.finance.sina.com.cn/q/view/newSinaHy.php"
-SINA_HQ = "https://hq.sinajs.cn/list=sh000001,sz399006,sh000688"
+INDEX_SYMBOLS = {
+    "sh000001": "上证",
+    "sz399001": "深证成指",
+    "sz399006": "创业板",
+    "sh000688": "科创50",
+    "sh000016": "上证50",
+    "sh932000": "中证2000",
+    "sz399005": "中小100",
+}
+SINA_HQ = "https://hq.sinajs.cn/list=" + ",".join(INDEX_SYMBOLS)
 SINA_HQ_LIST = "https://hq.sinajs.cn/list="
 TENCENT_DAILY = "https://web.ifzq.gtimg.cn/appstock/app/kline/kline"
 EASTMONEY_BOARD_RANK = "https://17.push2.eastmoney.com/api/qt/clist/get"
@@ -44,6 +54,7 @@ TENCENT_QUOTES = "https://qt.gtimg.cn/q="
 
 CHECKPOINT = "10:30"
 TODAY = date.today().isoformat()
+MARKET_TZ = ZoneInfo("Asia/Shanghai")
 DEFAULT_INVESTMENT_DIR = Path("/Users/char/Library/Mobile Documents/com~apple~CloudDocs/Obsidian Vault/investment")
 INVESTMENT_ROOT = Path(__file__).resolve().parents[4]
 LOCAL_STOCK_CACHE_DIR = Path("/Users/char/Desktop/04 investment/a_share_rotation_research/data/cache")
@@ -180,6 +191,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--investment-dir", type=Path, default=DEFAULT_INVESTMENT_DIR)
     parser.add_argument("--out", type=Path, default=Path(f"scan_1030_{TODAY}"))
     parser.add_argument("--checkpoint", default=CHECKPOINT, help="HH:MM checkpoint used for intraday metrics")
+    parser.add_argument("--asof-time", default="", help="Optional HH:MM cutoff for intraday minute metrics; defaults to checkpoint.")
     parser.add_argument("--top-sector-rank", type=int, default=10)
     parser.add_argument("--pullback-sector-rank", type=int, default=15)
     parser.add_argument("--min-amount", type=float, default=500_000_000)
@@ -187,6 +199,48 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-workers", type=int, default=18)
     parser.add_argument("--limit", type=int, default=0, help="Optional symbol limit for testing")
     return parser.parse_args()
+
+
+def normalize_intraday_time(value: str, fallback: str = CHECKPOINT) -> str:
+    raw = str(value or "").strip().replace("：", ":")
+    if not raw:
+        raw = fallback
+    if raw.isdigit() and len(raw) == 4:
+        raw = f"{raw[:2]}:{raw[2:]}"
+    if raw.isdigit() and len(raw) in {3, 4}:
+        raw = f"{int(raw[:-2]):02d}:{raw[-2:]}"
+    if len(raw) != 5 or raw[2] != ":":
+        raise SystemExit(f"invalid intraday time: {value}")
+    hour, minute = raw.split(":", 1)
+    if not (hour.isdigit() and minute.isdigit()):
+        raise SystemExit(f"invalid intraday time: {value}")
+    hour_int = int(hour)
+    minute_int = int(minute)
+    if hour_int < 0 or hour_int > 23 or minute_int < 0 or minute_int > 59:
+        raise SystemExit(f"invalid intraday time: {value}")
+    return f"{hour_int:02d}:{minute_int:02d}"
+
+
+def metric_checkpoint(args: argparse.Namespace) -> str:
+    return normalize_intraday_time(getattr(args, "asof_time", "") or args.checkpoint, args.checkpoint)
+
+
+def summary_snapshot_fields(args: argparse.Namespace, results: list[dict[str, Any]]) -> dict[str, Any]:
+    target_time = metric_checkpoint(args)
+    checkpoint_times = sorted(str(row.get("checkpoint_time") or "") for row in results if row.get("checkpoint_time"))
+    actual_time = checkpoint_times[-1] if checkpoint_times else ""
+    now = datetime.now(MARKET_TZ)
+    run_at = now.isoformat(timespec="seconds")
+    run_hm = now.strftime("%H:%M")
+    snapshot_mode = "live_preview" if target_time > run_hm else "historical_intraday"
+    return {
+        "run_at": run_at,
+        "target_checkpoint": args.checkpoint,
+        "asof_time": target_time,
+        "actual_data_time": f"{TODAY} {actual_time}" if actual_time else "",
+        "snapshot_mode": snapshot_mode,
+        "snapshot_warning": "指数、市场宽度、个股分时指标按 asof_time 之前最新分钟或截面聚合计算；板块排名为成员股 asof 聚合口径，非 EastMoney 历史排行榜原始快照。",
+    }
 
 
 def fetch_bytes(url: str, params: dict[str, Any] | None = None, retries: int = 4, timeout: int = 20) -> bytes:
@@ -510,6 +564,12 @@ def parse_portfolio_markdown(path: Path) -> dict[str, dict[str, Any]]:
         "南大光电": "300346",
         "彩虹股份": "600707",
         "彩虹集团": "600707",
+        "厦门钨业": "600549",
+        "华亚智能": "003043",
+        "欧莱新材": "688530",
+        "烽火通信": "600498",
+        "蓝箭电子": "301348",
+        "甘李药业": "603087",
         "天赐材料": "002709",
         "云南锗业": "002428",
         "中天科技": "600522",
@@ -518,9 +578,14 @@ def parse_portfolio_markdown(path: Path) -> dict[str, dict[str, Any]]:
         "浙江新能": "600032",
     }
     holdings: dict[str, dict[str, Any]] = {}
+    parsed_rows: list[dict[str, Any]] = []
     in_holdings = False
     header: list[str] = []
+    current_year = ""
     for line in text.splitlines():
+        year_match = re.search(r"(20\d{2})", line)
+        if line.lstrip().startswith("#") and year_match:
+            current_year = year_match.group(1)
         if line.startswith("## Holdings"):
             in_holdings = True
             continue
@@ -544,12 +609,25 @@ def parse_portfolio_markdown(path: Path) -> dict[str, dict[str, Any]]:
         shares_total = cell_by_header["Shares"] if "Shares" in cell_by_header else (cells[1] if len(cells) > 1 else "")
         avg_cost = cell_by_header["Avg Cost"] if "Avg Cost" in cell_by_header else (cells[2] if len(cells) > 2 else "")
         current_snapshot = cell_by_header["Current"] if "Current" in cell_by_header else (cells[3] if len(cells) > 3 else "")
-        holdings[code] = {
+        parsed_rows.append({
+            "date": normalize_portfolio_date(cell_by_header.get("Date", ""), current_year),
             "code": code,
             "name": name,
             "shares_total": shares_total,
             "avg_cost": avg_cost,
             "current_snapshot": current_snapshot,
+        })
+    latest_row_date = max((row["date"] for row in parsed_rows if row.get("date")), default="")
+    for row in parsed_rows:
+        if latest_row_date and row.get("date") != latest_row_date:
+            continue
+        holdings[row["code"]] = {
+            "code": row["code"],
+            "date": row.get("date", ""),
+            "name": row["name"],
+            "shares_total": row["shares_total"],
+            "avg_cost": row["avg_cost"],
+            "current_snapshot": row["current_snapshot"],
         }
     recent_adds: dict[str, str] = {}
     for line in text.splitlines():
@@ -568,6 +646,15 @@ def parse_portfolio_markdown(path: Path) -> dict[str, dict[str, Any]]:
         row.setdefault("shares_added_recently", recent_adds.get(code, ""))
         row.setdefault("last_add_price", "")
     return holdings
+
+
+def normalize_portfolio_date(value: str, year: str = "") -> str:
+    text = str(value or "").strip()
+    match = re.search(r"(\d{1,2})[./-](\d{1,2})", text)
+    if not match:
+        return ""
+    month_day = f"{int(match.group(1)):02d}-{int(match.group(2)):02d}"
+    return f"{year}-{month_day}" if year else month_day
 
 
 def read_symbol_pool(path: Path) -> set[str]:
@@ -1158,6 +1245,18 @@ def sustained_vwap_break(rows: list[dict[str, Any]], start_time: str, checkpoint
     return False
 
 
+def intraday_range_until(rows: list[dict[str, Any]], checkpoint: str) -> tuple[float | None, float | None]:
+    checkpoint_time = f"{checkpoint}:00" if len(checkpoint) == 5 else checkpoint
+    prices = [
+        num(row.get("p"))
+        for row in rows
+        if str(row.get("m") or "") <= checkpoint_time and num(row.get("p")) is not None
+    ]
+    if not prices:
+        return None, None
+    return max(prices), min(prices)
+
+
 def metrics_from_daily(daily: list[dict[str, Any]], base: dict[str, Any]) -> dict[str, Any] | None:
     if len(daily) < 8:
         return None
@@ -1167,17 +1266,31 @@ def metrics_from_daily(daily: list[dict[str, Any]], base: dict[str, Any]) -> dic
         return None
     prev5 = previous[-5:]
     prev10 = previous[-10:]
+    prev20 = previous[-20:] if len(previous) >= 20 else previous
+    prev60 = previous[-60:] if len(previous) >= 60 else previous
     stage_window = previous[-19:] + [{"high": base["high"]}]
     ma5 = (sum(float(bar["close"]) for bar in previous[-4:]) + base["price"]) / 5
     ma10 = (sum(float(bar["close"]) for bar in previous[-9:]) + base["price"]) / 10
+    ma20 = (sum(float(bar["close"]) for bar in previous[-19:]) + base["price"]) / 20 if len(previous) >= 19 else None
+    prev_ma10 = sum(float(bar["close"]) for bar in previous[-10:]) / 10
+    prev_ma20 = sum(float(bar["close"]) for bar in previous[-20:]) / 20 if len(previous) >= 20 else None
     prev5_high = max(float(bar["high"]) for bar in prev5)
+    prev20_high = max(float(bar["high"]) for bar in prev20)
     stage_high = max(float(bar["high"]) for bar in stage_window)
     return {
         "ma5": ma5,
         "ma10": ma10,
+        "ma20": ma20,
+        "ma10_slope_pct": (ma10 / prev_ma10 - 1) * 100 if prev_ma10 else "",
+        "ma20_slope_pct": (ma20 / prev_ma20 - 1) * 100 if ma20 and prev_ma20 else "",
         "prev5_high": prev5_high,
+        "prev20_high": prev20_high,
         "prev5_high_is_stage_high": abs(prev5_high - stage_high) < 1e-6,
         "recent5_gain_pct": (base["price"] / float(prev5[0]["close"]) - 1) * 100,
+        "recent10_gain_pct": (base["price"] / float(prev10[0]["close"]) - 1) * 100,
+        "recent20_gain_pct": (base["price"] / float(prev20[0]["close"]) - 1) * 100 if prev20 else "",
+        "recent60_gain_pct": (base["price"] / float(prev60[0]["close"]) - 1) * 100 if prev60 else "",
+        "drawdown_from_20d_high_pct": (base["price"] / prev20_high - 1) * 100 if prev20_high else "",
         "prev_close": float(previous[-1]["close"]),
         "prev5_avg_volume_daily": sum(float(bar["volume"]) for bar in prev5) / 5,
         "prev10_avg_volume_daily": sum(float(bar["volume"]) for bar in prev10) / 10,
@@ -1272,6 +1385,114 @@ def infer_sector_continuity_type(sector: Sector | None, role_type: str, yesterda
     if sector.pct <= 0:
         return "弱板块独强"
     return "非昨日强线/非明确新切换"
+
+
+def aggregate_sector_snapshot(sectors: list[Sector], results: list[dict[str, Any]]) -> tuple[list[Sector], dict[str, dict[str, Any]]]:
+    meta_by_key: dict[str, Sector] = {}
+    for sector in sectors:
+        meta_by_key[sector.code or sector.name] = sector
+        meta_by_key[sector.name] = sector
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in results:
+        key = str(row.get("sector_code") or row.get("sector") or "")
+        if not key:
+            continue
+        grouped.setdefault(key, []).append(row)
+
+    aggregated: list[Sector] = []
+    for key, rows in grouped.items():
+        meta = meta_by_key.get(key) or meta_by_key.get(str(rows[0].get("sector") or "")) or Sector(
+            code=key,
+            name=str(rows[0].get("sector") or key),
+            rank=999,
+            stock_count=len(rows),
+            pct=0,
+            amount=0,
+            leader_symbol="",
+            leader_pct=0,
+            leader_name="",
+            source="member_aggregate",
+            kind="概念",
+        )
+        amount = sum(num(row.get("amount_1030"), 0) or 0 for row in rows)
+        weighted_total = sum((num(row.get("pct"), 0) or 0) * (num(row.get("amount_1030"), 0) or 0) for row in rows)
+        pct = weighted_total / amount if amount else sum(num(row.get("pct"), 0) or 0 for row in rows) / len(rows)
+        leader = max(rows, key=lambda row: (num(row.get("pct"), -999) or -999, num(row.get("amount_1030"), 0) or 0))
+        up_count = sum(1 for row in rows if (num(row.get("pct"), 0) or 0) > 0)
+        limit_up_count = sum(1 for row in rows if is_limit_up(str(row.get("symbol") or ""), num(row.get("pct"), 0) or 0))
+        aggregated.append(
+            Sector(
+                code=meta.code or key,
+                name=meta.name,
+                rank=999,
+                stock_count=len(rows),
+                pct=float(pct),
+                amount=float(amount),
+                leader_symbol=str(leader.get("symbol") or ""),
+                leader_pct=float(num(leader.get("pct"), 0) or 0),
+                leader_name=str(leader.get("name") or ""),
+                source=f"{meta.source}_member_aggregate",
+                kind=meta.kind,
+                fallback_used=meta.fallback_used,
+                fetch_attempts=meta.fetch_attempts,
+                fallback_reason=meta.fallback_reason,
+                advancers_ratio=up_count / len(rows) if rows else "",
+                limit_up_count=limit_up_count,
+            )
+        )
+    aggregated.sort(key=lambda item: (item.pct, item.amount), reverse=True)
+    ranked = [
+        Sector(
+            code=item.code,
+            name=item.name,
+            rank=index,
+            stock_count=item.stock_count,
+            pct=item.pct,
+            amount=item.amount,
+            leader_symbol=item.leader_symbol,
+            leader_pct=item.leader_pct,
+            leader_name=item.leader_name,
+            source=item.source,
+            kind=item.kind,
+            fallback_used=item.fallback_used,
+            fetch_attempts=item.fetch_attempts,
+            fallback_reason=item.fallback_reason,
+            advancers_ratio=item.advancers_ratio,
+            limit_up_count=item.limit_up_count,
+        )
+        for index, item in enumerate(aggregated, start=1)
+    ]
+    amount_ranked = {sector.code: rank for rank, sector in enumerate(sorted(ranked, key=lambda item: item.amount, reverse=True), start=1)}
+    stats = {
+        sector.code: {
+            "advancers_ratio": sector.advancers_ratio,
+            "limit_up_count": sector.limit_up_count,
+            "member_count": sector.stock_count,
+            "amount_rank": amount_ranked.get(sector.code, 999),
+            "member_error": "",
+            "snapshot_basis": "asof_member_aggregate",
+        }
+        for sector in ranked
+    }
+    return ranked, stats
+
+
+def apply_sector_snapshot_to_results(results: list[dict[str, Any]], sectors: list[Sector]) -> None:
+    by_code = {sector.code: sector for sector in sectors}
+    by_name = {sector.name: sector for sector in sectors}
+    for row in results:
+        sector = by_code.get(str(row.get("sector_code") or "")) or by_name.get(str(row.get("sector") or ""))
+        if not sector:
+            continue
+        row["sector"] = sector.name
+        row["sector_rank"] = sector.rank
+        row["sector_pct"] = round(sector.pct, 3)
+        relative = (num(row.get("pct"), 0) or 0) - sector.pct
+        row["relative_strength_vs_sector"] = round(relative, 3)
+        flags = [item for item in str(row.get("risk_flags") or "").split(";") if item and item != "弱于板块"]
+        if relative < 0:
+            flags.append("弱于板块")
+        row["risk_flags"] = ";".join(flags)
 
 
 def score_candidate(
@@ -1437,12 +1658,18 @@ def evaluate_stock(
     watch_symbols: set[str],
     portfolio_codes: set[str],
 ) -> dict[str, Any] | None:
-    checkpoint_row = latest_at_or_before(intraday_rows, args.checkpoint)
+    target_time = metric_checkpoint(args)
+    checkpoint_row = latest_at_or_before(intraday_rows, target_time)
     if not checkpoint_row:
         return None
     base = build_base_quote(quote, checkpoint_row)
     if not base:
         return None
+    intraday_high, intraday_low = intraday_range_until(intraday_rows, target_time)
+    if intraday_high is not None:
+        base["high"] = intraday_high
+    if intraday_low is not None:
+        base["low"] = intraday_low
     daily = metrics_from_daily(daily_rows, base)
     if not daily:
         return None
@@ -1456,13 +1683,17 @@ def evaluate_stock(
     base["position_in_range"] = calc_position(price, high, low)
     base["is_above_vwap"] = price >= base["vwap"]
     base["is_above_open"] = price >= base["open"]
-    base["reclaimed_vwap"] = base["is_above_vwap"] and any(num(row.get("p"), 0) < num(row.get("avg_p"), 0) for row in intraday_rows if str(row.get("m") or "") <= f"{args.checkpoint}:00")
-    base["sustained_vwap_break_0945_1030"] = sustained_vwap_break(intraday_rows, "09:45:00", args.checkpoint)
+    base["reclaimed_vwap"] = base["is_above_vwap"] and any(num(row.get("p"), 0) < num(row.get("avg_p"), 0) for row in intraday_rows if str(row.get("m") or "") <= f"{target_time}:00")
+    base["sustained_vwap_break_0945_1030"] = sustained_vwap_break(intraday_rows, "09:45:00", target_time)
     base["volume_ratio_vs_5d_same_time"] = same_time_volume_ratio(daily, intraday_rows, checkpoint_row)
 
     daily["distance_to_ma5_pct"] = (price - daily["ma5"]) / daily["ma5"] * 100
+    daily["distance_to_ma10_pct"] = (price - daily["ma10"]) / daily["ma10"] * 100
+    daily["distance_to_ma20_pct"] = (price - daily["ma20"]) / daily["ma20"] * 100 if daily.get("ma20") else ""
     daily["is_new_5d_high"] = price > daily["prev5_high"] and high > daily["prev5_high"]
     daily["reclaimed_ma5"] = price >= daily["ma5"] and low < daily["ma5"]
+    daily["reclaimed_ma10"] = price >= daily["ma10"] and low < daily["ma10"]
+    daily["reclaimed_ma20"] = bool(daily.get("ma20")) and price >= daily["ma20"] and low < daily["ma20"]
 
     sector_rank = sector.rank if sector else 999
     sector_pct = sector.pct if sector else 0
@@ -1524,6 +1755,7 @@ def evaluate_stock(
         "symbol": base["symbol"],
         "name": base["name"],
         "sector": sector.name if sector else "",
+        "sector_code": sector.code if sector else "",
         "sector_rank": sector_rank if sector else "",
         "sector_pct": round(sector_pct, 3) if sector else "",
         "price": round(price, 3),
@@ -1538,10 +1770,20 @@ def evaluate_stock(
         "prev_close": round(daily["prev_close"], 3),
         "ma5": round(daily["ma5"], 3),
         "ma10": round(daily["ma10"], 3),
+        "ma20": round(daily["ma20"], 3) if daily.get("ma20") else "",
+        "ma10_slope_pct": round(daily["ma10_slope_pct"], 3) if daily.get("ma10_slope_pct") != "" else "",
+        "ma20_slope_pct": round(daily["ma20_slope_pct"], 3) if daily.get("ma20_slope_pct") != "" else "",
         "prev5_high": round(daily["prev5_high"], 3),
+        "prev20_high": round(daily["prev20_high"], 3),
         "prev5_high_is_stage_high": daily["prev5_high_is_stage_high"],
         "recent5_gain_pct": round(daily["recent5_gain_pct"], 3),
+        "recent10_gain_pct": round(daily["recent10_gain_pct"], 3),
+        "recent20_gain_pct": round(daily["recent20_gain_pct"], 3) if daily.get("recent20_gain_pct") != "" else "",
+        "recent60_gain_pct": round(daily["recent60_gain_pct"], 3) if daily.get("recent60_gain_pct") != "" else "",
         "distance_to_ma5_pct": round(daily["distance_to_ma5_pct"], 3),
+        "distance_to_ma10_pct": round(daily["distance_to_ma10_pct"], 3),
+        "distance_to_ma20_pct": round(daily["distance_to_ma20_pct"], 3) if daily.get("distance_to_ma20_pct") != "" else "",
+        "drawdown_from_20d_high_pct": round(daily["drawdown_from_20d_high_pct"], 3) if daily.get("drawdown_from_20d_high_pct") != "" else "",
         "drawdown_from_high_pct": round(base["drawdown_from_high_pct"], 3),
         "drawdown_from_high_abs_pct": round(base["drawdown_from_high_abs_pct"], 3),
         "position_in_range": round(base["position_in_range"], 3),
@@ -1549,6 +1791,8 @@ def evaluate_stock(
         "is_above_open": base["is_above_open"],
         "is_new_5d_high": daily["is_new_5d_high"],
         "reclaimed_ma5": daily["reclaimed_ma5"],
+        "reclaimed_ma10": daily["reclaimed_ma10"],
+        "reclaimed_ma20": daily["reclaimed_ma20"],
         "reclaimed_vwap": base["reclaimed_vwap"],
         "relative_strength_vs_sector": round(relative_strength, 3),
         "role_type": role_type,
@@ -1578,42 +1822,72 @@ def write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str] | No
         writer.writerows(rows)
 
 
-def fetch_market_overview(quotes: list[dict[str, Any]]) -> dict[str, Any]:
+def parse_sina_hq_rows(raw: str) -> dict[str, list[str]]:
+    parsed: dict[str, list[str]] = {}
+    for line in raw.splitlines():
+        match = re.match(r"var hq_str_(\w+)=\"(.*)\";", line)
+        if not match:
+            continue
+        symbol, payload = match.groups()
+        parsed[symbol] = payload.split(",")
+    return parsed
+
+
+def fetch_index_pcts(args: argparse.Namespace | None = None) -> tuple[dict[str, Any], str]:
+    raw = subprocess.run(
+        ["curl", "-fsSL", "-A", "Mozilla/5.0", "-e", "https://finance.sina.com.cn", SINA_HQ],
+        check=True,
+        capture_output=True,
+        timeout=15,
+    ).stdout.decode("gbk", "replace")
+    hq_rows = parse_sina_hq_rows(raw)
+    target_time = metric_checkpoint(args) if args is not None else ""
+    output: dict[str, Any] = {}
+    use_asof = bool(args is not None and target_time)
+    source = "sina_index_minline_asof" if use_asof else "sina_hq_realtime"
+    for symbol, label in INDEX_SYMBOLS.items():
+        parts = hq_rows.get(symbol) or []
+        prev_close = num(parts[2]) if len(parts) > 2 else None
+        price = None
+        if use_asof:
+            try:
+                row = latest_at_or_before(fetch_intraday(symbol), target_time)
+                price = num(row.get("p")) if row else None
+            except Exception:
+                price = None
+        else:
+            price = num(parts[3]) if len(parts) > 3 else None
+        pct = (price / prev_close - 1) * 100 if price and prev_close else None
+        output[label] = round(pct, 3) if pct is not None else ""
+    return output, source
+
+
+def fetch_market_overview(quotes: list[dict[str, Any]], args: argparse.Namespace | None = None, results: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    basis_rows = results or []
     overview: dict[str, Any] = {
-        "时间": CHECKPOINT,
-        "上证": "",
-        "创业板": "",
-        "科创50": "",
-        "成交额预估": round(sum(num(row.get("amount"), 0) or 0 for row in quotes), 0),
+        "时间": args.checkpoint if args is not None else CHECKPOINT,
+        **{label: "" for label in INDEX_SYMBOLS.values()},
+        "成交额预估": round(sum(num(row.get("amount_1030"), 0) or 0 for row in basis_rows), 0)
+        if basis_rows
+        else round(sum(num(row.get("amount"), 0) or 0 for row in quotes), 0),
         "涨跌家数": "",
         "涨停/跌停": "",
+        "指数来源": "",
+        "市场宽度来源": "asof_stock_aggregate" if basis_rows else "quote_snapshot",
     }
     try:
-        raw = subprocess.run(
-            ["curl", "-fsSL", "-A", "Mozilla/5.0", "-e", "https://finance.sina.com.cn", SINA_HQ],
-            check=True,
-            capture_output=True,
-            timeout=15,
-        ).stdout.decode("gbk", "replace")
-        index_map = {"sh000001": "上证", "sz399006": "创业板", "sh000688": "科创50"}
-        for line in raw.splitlines():
-            match = re.match(r"var hq_str_(\w+)=\"(.*)\";", line)
-            if not match:
-                continue
-            symbol, payload = match.groups()
-            parts = payload.split(",")
-            if len(parts) < 4:
-                continue
-            close = num(parts[3])
-            prev_close = num(parts[2])
-            pct = (close / prev_close - 1) * 100 if close and prev_close else None
-            overview[index_map.get(symbol, symbol)] = round(pct, 3) if pct is not None else ""
+        index_pcts, index_source = fetch_index_pcts(args)
+        overview.update(index_pcts)
+        overview["指数来源"] = index_source
     except Exception as exc:
         overview["指数错误"] = str(exc)
-    up = sum(1 for row in quotes if (num(row.get("changepercent"), 0) or 0) > 0)
-    down = sum(1 for row in quotes if (num(row.get("changepercent"), 0) or 0) < 0)
-    limit_up = sum(1 for row in quotes if is_limit_up(str(row.get("symbol") or ""), num(row.get("changepercent"), 0) or 0))
-    limit_down = sum(1 for row in quotes if is_limit_down(str(row.get("symbol") or ""), num(row.get("changepercent"), 0) or 0))
+    rows_for_breadth = basis_rows or quotes
+    pct_key = "pct" if basis_rows else "changepercent"
+    amount_symbol_key = "symbol"
+    up = sum(1 for row in rows_for_breadth if (num(row.get(pct_key), 0) or 0) > 0)
+    down = sum(1 for row in rows_for_breadth if (num(row.get(pct_key), 0) or 0) < 0)
+    limit_up = sum(1 for row in rows_for_breadth if is_limit_up(str(row.get(amount_symbol_key) or ""), num(row.get(pct_key), 0) or 0))
+    limit_down = sum(1 for row in rows_for_breadth if is_limit_down(str(row.get(amount_symbol_key) or ""), num(row.get(pct_key), 0) or 0))
     overview["涨跌家数"] = f"{up}/{down}"
     overview["涨停/跌停"] = f"{limit_up}/{limit_down}"
     return overview
@@ -1911,6 +2185,230 @@ def trajectory_text(row: dict[str, Any]) -> str:
     return "，".join(parts) + "。"
 
 
+def row_float(row: dict[str, Any], key: str, default: float = 0.0) -> float:
+    parsed = num(row.get(key))
+    return parsed if parsed is not None else default
+
+
+def pullback_setup_type(row: dict[str, Any]) -> str:
+    dist5 = row_float(row, "distance_to_ma5_pct", 999)
+    dist10 = row_float(row, "distance_to_ma10_pct", 999)
+    dist20 = row_float(row, "distance_to_ma20_pct", 999)
+    recent10 = row_float(row, "recent10_gain_pct")
+    recent20 = row_float(row, "recent20_gain_pct")
+    recent60 = row_float(row, "recent60_gain_pct")
+    ma10_slope = row_float(row, "ma10_slope_pct")
+    ma20_slope = row_float(row, "ma20_slope_pct")
+    drawdown20 = abs(row_float(row, "drawdown_from_20d_high_pct"))
+    price = row_float(row, "price")
+    ma10 = row_float(row, "ma10")
+    ma20 = row_float(row, "ma20")
+    sector_rank = int(row_float(row, "sector_rank", 999))
+    volume_ratio = row_float(row, "volume_ratio_vs_5d_same_time")
+
+    if recent10 >= 15 and abs(dist5) <= 2 and price >= ma10 and sector_rank <= 15 and volume_ratio <= 1.5:
+        return "pullback_ma5_strong"
+    if recent20 >= 25 and abs(dist10) <= 2.5 and ma10_slope >= -0.2 and (not ma20 or price >= ma20) and 6 <= drawdown20 <= 20 and sector_rank <= 25:
+        return "pullback_ma10_trend"
+    if recent60 >= 15 and abs(dist20) <= 3 and ma20 and ma20_slope >= -0.3 and drawdown20 <= 25 and sector_rank <= 30:
+        return "pullback_ma20_swing"
+    if recent10 >= 12 and abs(dist5) <= 3 and not row.get("is_new_5d_high") and sector_rank <= 25:
+        return "failed_breakout_reclaim"
+    return ""
+
+
+def pullback_type_label(setup_type: str) -> str:
+    return {
+        "pullback_ma5_strong": "强趋势 5日线回踩",
+        "pullback_ma10_trend": "趋势 10日线回踩",
+        "pullback_ma20_swing": "中线 20日线回踩",
+        "failed_breakout_reclaim": "高位反抽观察",
+        "do_not_chase_to_pullback_watch": "不可追转回踩观察",
+    }.get(setup_type, "热门股回踩观察")
+
+
+def pullback_checkpoint_text(checkpoint: str, category: str, row: dict[str, Any]) -> tuple[str, str]:
+    above_vwap = row.get("is_above_vwap") is True
+    above_open = row.get("is_above_open") is True
+    position = row_float(row, "position_in_range")
+    if checkpoint in {"09:25", "9:25"}:
+        return "盘前观察池", "只生成观察池，不追昨日高潮股；开盘后看低开承接和 VWAP。"
+    if checkpoint in {"09:45", "9:45"}:
+        if above_vwap and above_open:
+            return "初步承接", "等 10:30 换手确认，不在 09:45 直接下结论。"
+        if not above_vwap and position < 0.4:
+            return "未承接", "不低吸，等是否重新站回 VWAP。"
+        return "假修复待辨认", "看 10:30 是否继续站回 VWAP，冲高回落则降级。"
+    if checkpoint in {"10:30", "1030"}:
+        if category == "回踩确认":
+            return "强趋势回踩成立", "11:20 看是否维持 VWAP 上方且板块不掉队。"
+        if above_vwap:
+            return "回踩待确认", "11:20 看是否不破上午低点、成交不恐慌放大。"
+        return "只观察，不低吸", "先等收回 VWAP，再看板块是否仍在前排。"
+    if checkpoint in {"11:20", "1120"}:
+        if above_vwap and position >= 0.5:
+            return "上午承接保留", "午后继续观察是否维持 VWAP 上方。"
+        return "午前反抽不足", "午后只看尾盘修复，弱票不要给太多幻想。"
+    if checkpoint in {"13:30", "1330"}:
+        if above_vwap and position >= 0.55:
+            return "午后回流确认", "14:30 看是否突破上午高点且板块回流。"
+        return "午后假修复风险", "跌破上午低点或板块流出则剔除。"
+    if checkpoint in {"14:30", "14:40", "1430", "1440"}:
+        if above_vwap:
+            return "尾盘承接 K 待确认", "收盘站上 VWAP/均线且不跳水，才可带入明日观察。"
+        return "不带到明天", "尾盘跌回 VWAP 或关键均线下方，不进入明日重点。"
+    if checkpoint in {"15:10", "1510"}:
+        if above_vwap:
+            return "今日回踩成功样本", "明日只看二次确认，不追高开急冲。"
+        return "今日回踩失败样本", "归档失败原因，明日不作为低吸优先级。"
+    return "回踩观察", "下一 checkpoint 继续验证 VWAP、均线和板块强度。"
+
+
+def build_pullback_setup_rows(
+    results: list[dict[str, Any]],
+    watch_symbols: set[str],
+    portfolio_codes: set[str],
+    checkpoint: str,
+    limit: int = 80,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for row in results:
+        if row.get("risk_flags") and "ST" in str(row.get("risk_flags")):
+            continue
+        sector_rank = int(row_float(row, "sector_rank", 999))
+        amount = row_float(row, "amount_1030")
+        recent10 = row_float(row, "recent10_gain_pct")
+        recent20 = row_float(row, "recent20_gain_pct")
+        recent60 = row_float(row, "recent60_gain_pct")
+        drawdown20 = abs(row_float(row, "drawdown_from_20d_high_pct"))
+        dist5 = row_float(row, "distance_to_ma5_pct", 999)
+        dist10 = row_float(row, "distance_to_ma10_pct", 999)
+        dist20 = row_float(row, "distance_to_ma20_pct", 999)
+        volume_ratio = row_float(row, "volume_ratio_vs_5d_same_time")
+        source_flags: list[str] = []
+        if sector_rank <= 10:
+            source_flags.append("强板块")
+        if row.get("symbol") in watch_symbols:
+            source_flags.append("watchlist")
+        if row.get("code") in portfolio_codes:
+            source_flags.append("portfolio")
+        if recent10 >= 15 or recent20 >= 25:
+            source_flags.append("近期强势股")
+        if row.get("hard_cap_reason") and ("偏离5日线过大" in str(row.get("hard_cap_reason")) or "高点回撤大" in str(row.get("hard_cap_reason"))):
+            source_flags.append("do_not_chase_to_pullback_watch")
+
+        qualification = 0
+        qualification += 8 if sector_rank <= 10 else 4 if sector_rank <= 20 else 0
+        qualification += 6 if recent20 >= 20 else 0
+        qualification += 6 if recent10 >= 15 else 0
+        qualification += 5 if row.get("symbol") in watch_symbols or row.get("code") in portfolio_codes else 0
+        qualification += 5 if amount >= 500_000_000 else 0
+        if qualification < 15 or not source_flags:
+            continue
+
+        setup_type = pullback_setup_type(row)
+        if "do_not_chase_to_pullback_watch" in source_flags and setup_type in {"pullback_ma5_strong", "pullback_ma10_trend", "failed_breakout_reclaim"}:
+            setup_type = "do_not_chase_to_pullback_watch"
+        if not setup_type and min(abs(dist5), abs(dist10), abs(dist20)) <= 3 and (recent10 >= 10 or recent20 >= 15 or recent60 >= 15):
+            setup_type = "pullback_ma20_swing" if abs(dist20) <= 3 else "failed_breakout_reclaim"
+        if not setup_type:
+            continue
+
+        position_score = 0
+        position_score += 10 if abs(dist5) <= 2 else 0
+        position_score += 8 if abs(dist10) <= 2.5 else 0
+        position_score += 6 if abs(dist20) <= 3 else 0
+        position_score += 5 if row.get("ma20") == "" or row_float(row, "price") >= row_float(row, "ma20") else -10
+        position_score += 5 if 6 <= drawdown20 <= 18 else -8 if drawdown20 > 25 else 0
+        position_score = clamp(position_score, -18, 25)
+
+        acceptance = 0
+        acceptance += 8 if row.get("is_above_vwap") is True else -8
+        acceptance += 5 if row.get("is_above_open") is True else 0
+        acceptance += 5 if row_float(row, "position_in_range") > 0.5 else 0
+        acceptance += 4 if row.get("reclaimed_vwap") or row.get("reclaimed_ma5") or row.get("reclaimed_ma10") else 0
+        acceptance += 3 if 0 < volume_ratio <= 1.3 else 1 if volume_ratio <= 2 else -3
+        acceptance += -5 if abs(row_float(row, "drawdown_from_high_pct")) > 3 else 0
+        acceptance = clamp(acceptance, -18, 25)
+
+        sector_sync = 0
+        sector_sync += 6 if sector_rank <= 10 else 3 if sector_rank <= 15 else 0
+        sector_sync += 4 if row.get("role_type") == "中军" else 0
+        sector_sync += 2 if row_float(row, "relative_strength_vs_sector") > 0 else 0
+        sector_sync += -8 if sector_rank > 30 else 0
+        sector_sync = clamp(sector_sync, -10, 15)
+
+        risk_penalty = 0
+        risk_penalty -= 5 if row_float(row, "pct") > 12 else 0
+        risk_penalty -= 8 if recent10 > 30 else 0
+        risk_penalty -= 6 if abs(row_float(row, "drawdown_from_high_pct")) > 4 else 0
+        risk_penalty -= 5 if volume_ratio > 5 else 0
+        risk_penalty -= 8 if amount < 300_000_000 else 0
+        risk_penalty -= 10 if "ST" in str(row.get("risk_flags") or "") else 0
+        risk_penalty = max(risk_penalty, -25)
+
+        score = int(clamp(qualification + position_score + acceptance + sector_sync + risk_penalty, 0, 100))
+        if score >= 80:
+            category = "回踩确认"
+        elif score >= 65:
+            category = "回踩待确认"
+        elif score >= 50:
+            category = "只观察"
+        else:
+            category = "失败/剔除"
+        status, next_step = pullback_checkpoint_text(checkpoint, category, row)
+        risk_parts = [
+            "板块退潮" if sector_rank > 20 else "",
+            "未收回 VWAP" if row.get("is_above_vwap") is not True else "",
+            "跌破 MA20" if row.get("ma20") != "" and row_float(row, "price") < row_float(row, "ma20") else "",
+            "高位拥挤" if recent10 > 30 else "",
+            row.get("risk_flags") or "",
+        ]
+        rows.append(
+            {
+                "时间": checkpoint,
+                "股票": f"{row['name']} {row['code']}",
+                "板块": row.get("sector", ""),
+                "回踩类型": pullback_type_label(setup_type),
+                "setup": setup_type,
+                "分类": category,
+                "状态": status,
+                "分数": score,
+                "资格分": qualification,
+                "位置分": position_score,
+                "承接分": acceptance,
+                "板块同步分": sector_sync,
+                "风险扣分": risk_penalty,
+                "走势自然语言": trajectory_text(row),
+                "当前价": row.get("price", ""),
+                "当前涨幅": row.get("pct", ""),
+                "板块排名": row.get("sector_rank", ""),
+                "板块涨幅": row.get("sector_pct", ""),
+                "MA5": row.get("ma5", ""),
+                "MA10": row.get("ma10", ""),
+                "MA20": row.get("ma20", ""),
+                "距MA5%": row.get("distance_to_ma5_pct", ""),
+                "距MA10%": row.get("distance_to_ma10_pct", ""),
+                "距MA20%": row.get("distance_to_ma20_pct", ""),
+                "VWAP": row.get("vwap", ""),
+                "VWAP状态": "已收回/上方" if row.get("is_above_vwap") is True else "未收回/下方",
+                "上午低点": row.get("low", ""),
+                "日内位置%": round(row_float(row, "position_in_range") * 100, 2),
+                "近10日涨幅%": row.get("recent10_gain_pct", ""),
+                "近20日涨幅%": row.get("recent20_gain_pct", ""),
+                "近60日涨幅%": row.get("recent60_gain_pct", ""),
+                "20日高点回撤%": row.get("drawdown_from_20d_high_pct", ""),
+                "量比": row.get("volume_ratio_vs_5d_same_time", ""),
+                "来源": "/".join(source_flags),
+                "下一步": next_step,
+                "风险": "；".join(part for part in risk_parts if part),
+                "提示": "回踩确认不等于立即买入；它只表示从不可追高变成有观察价值。",
+            }
+        )
+    rows.sort(key=lambda item: ({"回踩确认": 0, "回踩待确认": 1, "只观察": 2, "失败/剔除": 3}.get(item["分类"], 9), -int(item["分数"] or 0)))
+    return rows[:limit]
+
+
 def build_portfolio_extra_rows(portfolio: dict[str, dict[str, Any]], plans: dict[str, dict[str, str]], result_by_code: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for code, holding in portfolio.items():
@@ -2020,9 +2518,13 @@ def main() -> int:
         {"code": code, "name": row.get("name", ""), "thesis": plan_meta.get(code, {}).get("thesis", "")}
         for code, row in portfolio_meta.items()
     ]
-    candidates = build_data_packet_candidates(results, watch_symbols, portfolio_codes, watch_meta, portfolio_meta)
+    sectors, sector_stats = aggregate_sector_snapshot(sectors, results)
+    apply_sector_snapshot_to_results(results, sectors)
 
-    market_overview = fetch_market_overview(quotes)
+    candidates = build_data_packet_candidates(results, watch_symbols, portfolio_codes, watch_meta, portfolio_meta)
+    pullback_rows = build_pullback_setup_rows(results, watch_symbols, portfolio_codes, args.checkpoint)
+
+    market_overview = fetch_market_overview(quotes, args, results)
     market_rows = build_market_rows(sectors, sector_stats)
     hot_board_front_core_rows = build_hot_board_front_core_rows(args.checkpoint, sectors, results)
     extra_portfolio_rows = load_portfolio_rows(args.portfolio)
@@ -2037,6 +2539,7 @@ def main() -> int:
     write_csv(args.out / "market_sector_scan.csv", market_rows)
     write_csv(args.out / "hot_board_front_core.csv", hot_board_front_core_rows)
     write_csv(args.out / "candidate_scores.csv", candidates)
+    write_csv(args.out / "pullback_setups.csv", pullback_rows)
     write_csv(args.out / "watchlist_portfolio_actions.csv", handling_rows)
     write_csv(args.out / "portfolio_extra.csv", portfolio_extra_rows)
     write_csv(args.out / "tech_sector_daily_k.csv", tech_sector_daily_rows)
@@ -2053,6 +2556,7 @@ def main() -> int:
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "checkpoint": args.checkpoint,
         "data_timestamp": TODAY,
+        **summary_snapshot_fields(args, results),
         "stock_pool": args.pool,
         "source_chain": sector_source_chain + quote_source_chain + ["Sina daily KLine", "Sina CN_MinlineService"],
         "sector_source_chain": sector_source_chain,
@@ -2065,6 +2569,7 @@ def main() -> int:
         "quote_count": len(quotes),
         "evaluated_count": len(results),
         "candidate_count": len(candidates),
+        "pullback_setup_count": len(pullback_rows),
         "pullback_count": sum(1 for row in results if row["is_pullback_setup"]),
         "breakout_count": sum(1 for row in results if row["is_breakout_setup"]),
         "watchlist_count": len(watch_symbols),
@@ -2093,6 +2598,7 @@ def main() -> int:
             "market_sector_scan": market_rows,
             "hot_board_front_core": hot_board_front_core_rows,
             "candidate_scores": candidates,
+            "pullback_setups": pullback_rows,
             "watchlist_portfolio_actions": handling_rows,
             "portfolio_extra": portfolio_extra_rows,
         },
