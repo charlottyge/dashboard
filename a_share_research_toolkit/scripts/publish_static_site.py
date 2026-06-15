@@ -27,7 +27,7 @@ DEFAULT_WATCHLIST_MD = DEFAULT_INVESTMENT_DIR / "watchlist.md"
 CSV_PREVIEW_ROWS = 40
 CANDIDATE_PREVIEW_ROWS = 500
 REPORT_PREVIEW_CHARS = 32000
-DEMO_DAY = "2026-06-09"
+DEFAULT_START_DAY = "2026-06-15"
 CHECKPOINT_ORDER = {
     "scan_0925": 925,
     "scan_0945": 945,
@@ -157,9 +157,12 @@ def latest_summary_dirs() -> list[Path]:
     return [item.parent for item in summaries]
 
 
-def find_latest_dir(name_fragment: str = "", exclude_fragments: set[str] | None = None) -> Path | None:
+def find_latest_dir(name_fragment: str = "", exclude_fragments: set[str] | None = None, start_date: str = "") -> Path | None:
     exclude_fragments = exclude_fragments or set()
     for directory in latest_summary_dirs():
+        date_part = directory.parent.name
+        if start_date and _looks_like_date(date_part) and date_part < start_date:
+            continue
         if any(fragment in directory.name for fragment in exclude_fragments):
             continue
         if not name_fragment or name_fragment in directory.name:
@@ -192,11 +195,22 @@ def _is_candidate_table(name: str) -> bool:
     return name.startswith("candidate_") or name == "candidate_scores.csv" or name == "strategy_candidates.csv"
 
 
-def list_recent_exports(limit: int = 80) -> list[dict]:
+def list_recent_exports(limit: int = 80, start_date: str = DEFAULT_START_DAY) -> list[dict]:
     if not INTRADAY_ROOT.exists():
         return []
+    files = []
+    for path in INTRADAY_ROOT.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in {".csv", ".json"}:
+            continue
+        try:
+            date_part = path.relative_to(INTRADAY_ROOT).parts[0]
+        except Exception:
+            date_part = ""
+        if start_date and _looks_like_date(date_part) and date_part < start_date:
+            continue
+        files.append(path)
     paths = sorted(
-        [path for path in INTRADAY_ROOT.rglob("*") if path.is_file() and path.suffix.lower() in {".csv", ".json"}],
+        files,
         key=lambda item: item.stat().st_mtime,
         reverse=True,
     )
@@ -211,12 +225,13 @@ def list_recent_exports(limit: int = 80) -> list[dict]:
     ]
 
 
-def scan_dirs_by_day(limit_days: int = 20) -> list[dict]:
+def scan_dirs_by_day(limit_days: int = 20, start_date: str = DEFAULT_START_DAY) -> list[dict]:
     if not INTRADAY_ROOT.exists():
-        return []
+        return [{"date": start_date, "checkpoints": []}] if start_date else []
     date_dirs = [path for path in INTRADAY_ROOT.iterdir() if path.is_dir() and _looks_like_date(path.name)]
+    if start_date:
+        date_dirs = [path for path in date_dirs if path.name >= start_date]
     date_dirs.sort(key=lambda item: item.name, reverse=True)
-    date_dirs.sort(key=lambda item: 0 if item.name == DEMO_DAY else 1)
     days = []
     for date_dir in date_dirs[:limit_days]:
         checkpoint_dirs = [
@@ -233,6 +248,9 @@ def scan_dirs_by_day(limit_days: int = 20) -> list[dict]:
                 "checkpoints": [build_checkpoint_packet(path) for path in checkpoint_dirs],
             }
         )
+    if start_date and not any(day["date"] == start_date for day in days):
+        days.append({"date": start_date, "checkpoints": []})
+    days.sort(key=lambda item: item["date"], reverse=True)
     return days
 
 
@@ -647,7 +665,7 @@ def load_portfolio() -> dict:
     return result
 
 
-def load_portfolio_history() -> dict:
+def load_portfolio_history(start_date: str = DEFAULT_START_DAY) -> dict:
     if not DEFAULT_PORTFOLIO_MD.exists():
         return {}
     text = DEFAULT_PORTFOLIO_MD.read_text(encoding="utf-8", errors="replace")
@@ -684,6 +702,8 @@ def load_portfolio_history() -> dict:
         code = code_match.group(1) if code_match else PORTFOLIO_CODE_MAP.get(name, "")
         name = __import__("re").sub(r"`?\d{6}`?", "", name).strip()
         if not name:
+            continue
+        if start_date and date_key < start_date:
             continue
         history.setdefault(date_key, {"latest_date": date_key, "base_holdings": []})
         history[date_key]["base_holdings"].append(
@@ -744,19 +764,21 @@ def load_preopen_plan() -> dict:
 
 
 def build_payload() -> dict:
-    latest_intraday_dir = find_latest_dir("scan_", exclude_fragments={"strategy"})
-    latest_strategy_dir = find_latest_dir("strategy")
+    preopen_plan = load_preopen_plan()
+    start_date = str(preopen_plan.get("date") or DEFAULT_START_DAY)
+    latest_intraday_dir = find_latest_dir("scan_", exclude_fragments={"strategy"}, start_date=start_date)
+    latest_strategy_dir = find_latest_dir("strategy", start_date=start_date)
     intraday_summary = read_json(latest_intraday_dir / "summary.json") if latest_intraday_dir else {}
     strategy_summary = read_json(latest_strategy_dir / "summary.json") if latest_strategy_dir else {}
     watchlist = load_watchlist()
     portfolio = load_portfolio()
-    portfolio_history = load_portfolio_history()
+    portfolio_history = load_portfolio_history(start_date=start_date)
     (DATA_ROOT / "current_watchlist.json").write_text(json.dumps(watchlist, ensure_ascii=False, indent=2), encoding="utf-8")
     (DATA_ROOT / "current_portfolio.json").write_text(json.dumps(portfolio, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "demo_day": DEMO_DAY,
+        "demo_day": start_date,
         "source": {
             "intraday_root": rel(INTRADAY_ROOT),
             "weekly_root": rel(WEEKLY_ROOT),
@@ -786,12 +808,12 @@ def build_payload() -> dict:
             "tables": csv_if_exists(latest_strategy_dir, ["strategy_summary.csv", "strategy_candidates.csv"]),
         },
         "latest_weekly": latest_weekly_report(),
-        "preopen_plan": load_preopen_plan(),
-        "timeline_days": scan_dirs_by_day(),
+        "preopen_plan": preopen_plan,
+        "timeline_days": scan_dirs_by_day(start_date=start_date),
         "watchlist": watchlist,
         "portfolio": portfolio,
         "portfolio_history": portfolio_history,
-        "recent_exports": list_recent_exports(),
+        "recent_exports": list_recent_exports(start_date=start_date),
     }
 
 
