@@ -161,7 +161,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -169,6 +170,21 @@ select {
   font: inherit;
   background: #fff;
   color: var(--text);
+}
+
+textarea {
+  width: 100%;
+  min-height: 240px;
+  margin-top: 14px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.hint {
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .primary {

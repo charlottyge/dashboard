@@ -18,8 +18,11 @@ TOOLKIT_ROOT = Path(__file__).resolve().parent
 WORKSPACE_ROOT = TOOLKIT_ROOT.parent
 WEB_ROOT = TOOLKIT_ROOT / "web"
 TOOL_DIR = WORKSPACE_ROOT / "tool"
+PUBLIC_ROOT = WORKSPACE_ROOT / "public"
 ROTATION_DIR = WORKSPACE_ROOT / "a_share_rotation_research"
 INTRADAY_SCRIPT_DIR = TOOLKIT_ROOT / "vendor" / "intraday_decision" / "scripts"
+RUN_AND_PUBLISH_SCRIPT = TOOLKIT_ROOT / "scripts" / "run_intraday_and_publish.py"
+SYNC_AI_SCRIPT = TOOLKIT_ROOT / "scripts" / "sync_ai_analysis.py"
 CONFIG_PATH = TOOLKIT_ROOT / "toolkit_config.json"
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
@@ -158,40 +161,37 @@ def build_intraday_job(payload: dict) -> dict:
     checkpoint = str(payload.get("checkpoint") or "10:30")
     report_date = str(payload.get("date") or date.today().isoformat())
     pool = str(payload.get("pool") or "all-a")
-    script = CHECKPOINT_SCRIPTS.get(checkpoint)
-    if not script:
+    if checkpoint not in CHECKPOINT_SCRIPTS:
         raise ValueError(f"unsupported checkpoint: {checkpoint}")
-    out_dir = intraday_output_dir(report_date, checkpoint)
     command = [
-        config["intraday_python"],
-        "-u",
-        str(INTRADAY_SCRIPT_DIR / script),
+        sys.executable,
+        str(RUN_AND_PUBLISH_SCRIPT),
+        "--checkpoint",
+        checkpoint,
+        "--date",
+        report_date,
         "--pool",
         pool,
-        "--out",
-        str(out_dir),
+        "--no-push",
+        "--no-commit",
     ]
-    if checkpoint not in {"09:25", "0925", "09:45", "0945", "10:30", "1030"}:
-        command.extend(["--previous-root", str(Path(config["intraday_export_root"]) / report_date)])
     if payload.get("limit"):
         command.extend(["--limit", str(payload["limit"])])
     if payload.get("max_workers"):
         command.extend(["--max-workers", str(payload["max_workers"])])
-    return create_job("intraday", payload, command, INTRADAY_SCRIPT_DIR)
+    return create_job("intraday_publish", payload, command, WORKSPACE_ROOT)
 
 
 def build_strategy_job(payload: dict) -> dict:
-    config = load_config()
     report_date = str(payload.get("date") or date.today().isoformat())
-    out_dir = Path(config["intraday_export_root"]) / report_date / "scan_strategy_1430"
     command = [
-        config["intraday_python"],
-        "-u",
-        str(INTRADAY_SCRIPT_DIR / "scan_strategy.py"),
-        "--out",
-        str(out_dir),
-        "--checkpoint",
-        str(payload.get("checkpoint") or "14:20"),
+        sys.executable,
+        str(RUN_AND_PUBLISH_SCRIPT),
+        "--strategy",
+        "--date",
+        report_date,
+        "--no-push",
+        "--no-commit",
     ]
     if payload.get("limit"):
         command.extend(["--limit", str(payload["limit"])])
@@ -199,7 +199,7 @@ def build_strategy_job(payload: dict) -> dict:
         command.extend(["--max-workers", str(payload["max_workers"])])
     if payload.get("max_float_shares"):
         command.extend(["--max-float-shares", str(payload["max_float_shares"])])
-    return create_job("strategy", payload, command, INTRADAY_SCRIPT_DIR)
+    return create_job("strategy_publish", payload, command, WORKSPACE_ROOT)
 
 
 def build_weekly_job(payload: dict) -> dict:
@@ -223,7 +223,55 @@ def list_reports() -> dict:
     return {
         "weekly_reports": list_files(weekly_root, ["*.md", "*.csv", "*.json"], limit=80),
         "intraday_exports": list_files(intraday_root, ["*.csv", "*.json"], limit=120),
+        "dashboard_data": list_files(PUBLIC_ROOT / "data", ["*.json", "*.md"], limit=80),
     }
+
+
+def dashboard_status() -> dict:
+    site_path = PUBLIC_ROOT / "data" / "site.json"
+    if not site_path.exists():
+        return {"site_json": str(site_path), "exists": False}
+    payload = json.loads(site_path.read_text(encoding="utf-8"))
+    days = payload.get("timeline_days") or []
+    latest_day = days[0] if days else {}
+    checkpoints = latest_day.get("checkpoints") or []
+    latest_checkpoint = checkpoints[-1] if checkpoints else {}
+    return {
+        "site_json": str(site_path),
+        "exists": True,
+        "generated_at": payload.get("generated_at", ""),
+        "latest_date": latest_day.get("date", ""),
+        "latest_checkpoint": latest_checkpoint.get("id", ""),
+        "latest_label": latest_checkpoint.get("label", ""),
+        "has_ai_analysis": bool(latest_checkpoint.get("ai_analysis")),
+        "dashboard_url": str(PUBLIC_ROOT / "index.html"),
+    }
+
+
+def latest_ai_target() -> dict:
+    status = dashboard_status()
+    if not status.get("exists"):
+        return status
+    return {
+        **status,
+        "sync_command": "python3 a_share_research_toolkit/scripts/sync_ai_analysis.py --input /path/to/ai_analysis.json",
+    }
+
+
+def build_ai_sync_job(payload: dict) -> dict:
+    analysis = payload.get("analysis")
+    if not isinstance(analysis, dict):
+        raise ValueError("payload.analysis must be an object matching ai_analysis schema")
+    temp_dir = WORKSPACE_ROOT / "tool" / "tmp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    input_path = temp_dir / f"ai_analysis_{uuid.uuid4().hex[:8]}.json"
+    input_path.write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
+    command = [sys.executable, str(SYNC_AI_SCRIPT), "--input", str(input_path)]
+    if payload.get("date"):
+        command.extend(["--date", str(payload["date"])])
+    if payload.get("checkpoint"):
+        command.extend(["--checkpoint", str(payload["checkpoint"])])
+    return create_job("ai_sync", payload, command, WORKSPACE_ROOT)
 
 
 def list_files(root: Path, patterns: list[str], limit: int = 100) -> list[dict]:
@@ -267,6 +315,7 @@ class Handler(SimpleHTTPRequestHandler):
                 {
                     "toolkit_root": str(TOOLKIT_ROOT),
                     "tool_dir": str(TOOL_DIR),
+                    "public_root": str(PUBLIC_ROOT),
                     "rotation_dir": str(ROTATION_DIR),
                     "intraday_scripts": str(INTRADAY_SCRIPT_DIR),
                     "config": config,
@@ -274,6 +323,12 @@ class Handler(SimpleHTTPRequestHandler):
                     "rotation_ready": (ROTATION_DIR / "src" / "weekly_runner.py").exists(),
                 },
             )
+            return
+        if parsed.path == "/api/dashboard":
+            write_json(self, dashboard_status())
+            return
+        if parsed.path == "/api/ai/target":
+            write_json(self, latest_ai_target())
             return
         if parsed.path == "/api/jobs":
             with JOBS_LOCK:
@@ -312,6 +367,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if parsed.path == "/api/run/weekly":
                 write_json(self, {"job": build_weekly_job(payload)}, status=202)
+                return
+            if parsed.path == "/api/ai/sync":
+                write_json(self, {"job": build_ai_sync_job(payload)}, status=202)
                 return
             write_json(self, {"error": "not found"}, status=404)
         except Exception as exc:

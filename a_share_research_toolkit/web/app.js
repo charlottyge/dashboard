@@ -2,6 +2,7 @@ const titles = {
   intraday: ["盘中决策", "按 checkpoint 运行市场扫描、候选股和持仓/观察池处理。"],
   strategy: ["策略包扫描", "运行首板次日策略包，并保留流通股过滤后的结果。"],
   weekly: ["周末板块轮动", "生成板块估值、四象限、季节性主题和个股观察池周报。"],
+  ai: ["AI 分析同步", "把 Codex skill 生成的 ai_analysis 写回 dashboard。"],
   reports: ["报告中心", "查看最近生成的 Markdown、CSV 和 JSON。"],
   settings: ["迁移与配置", "启动、备份和恢复这个本地工具。"],
 };
@@ -37,6 +38,7 @@ function switchView(name) {
   document.getElementById("view-title").textContent = titles[name][0];
   document.getElementById("view-subtitle").textContent = titles[name][1];
   if (name === "reports") loadReports();
+  if (name === "ai") loadAiTarget();
 }
 
 async function loadStatus() {
@@ -47,6 +49,7 @@ async function loadStatus() {
     <table>
       <tr><th>项目</th><th>路径</th></tr>
       <tr><td>工具目录</td><td>${status.toolkit_root}</td></tr>
+      <tr><td>Dashboard</td><td>${status.public_root}</td></tr>
       <tr><td>盘中脚本</td><td>${status.intraday_scripts}</td></tr>
       <tr><td>周报项目</td><td>${status.rotation_dir}</td></tr>
       <tr><td>导出目录</td><td>${status.config.intraday_export_root}</td></tr>
@@ -78,12 +81,30 @@ async function pollJob() {
     clearInterval(pollTimer);
     pollTimer = null;
     loadReports();
+    loadAiTarget().catch(() => {});
   }
+}
+
+async function loadAiTarget() {
+  const target = document.getElementById("ai-target");
+  if (!target) return;
+  const data = await api("/api/ai/target");
+  if (!data.exists) {
+    target.textContent = `尚未生成 dashboard 数据：${data.site_json || ""}`;
+    return;
+  }
+  document.getElementById("ai-date").value = data.latest_date || "";
+  document.getElementById("ai-checkpoint").value = data.latest_checkpoint || "";
+  target.innerHTML = `
+    <p>最新目标：<code>${escapeHtml(data.latest_date || "-")} / ${escapeHtml(data.latest_label || data.latest_checkpoint || "-")}</code></p>
+    <p>site.json：<code>${escapeHtml(data.site_json)}</code></p>
+    <p>已存在 AI 分析：<code>${data.has_ai_analysis ? "是" : "否"}</code></p>
+  `;
 }
 
 async function loadReports() {
   const data = await api("/api/reports");
-  const files = [...data.weekly_reports, ...data.intraday_exports].slice(0, 140);
+  const files = [...(data.dashboard_data || []), ...data.weekly_reports, ...data.intraday_exports].slice(0, 180);
   const list = document.getElementById("report-list");
   if (!files.length) {
     list.innerHTML = "<p>还没有报告文件。</p>";
@@ -157,6 +178,25 @@ function bindEvents() {
       skip_daily_fetch: document.getElementById("weekly-skip-daily").checked,
     }).catch((error) => log(error.message));
   });
+
+  document.getElementById("refresh-ai-target")?.addEventListener("click", () => {
+    loadAiTarget().catch((error) => log(error.message));
+  });
+
+  document.getElementById("sync-ai-analysis")?.addEventListener("click", () => {
+    let analysis = {};
+    try {
+      analysis = JSON.parse(document.getElementById("ai-analysis-json").value || "{}");
+    } catch (error) {
+      log(`AI JSON 解析失败：${error.message}`);
+      return;
+    }
+    startJob("/api/ai/sync", {
+      date: document.getElementById("ai-date").value,
+      checkpoint: document.getElementById("ai-checkpoint").value,
+      analysis,
+    }).catch((error) => log(error.message));
+  });
 }
 
 setDefaults();
@@ -166,3 +206,4 @@ loadStatus().catch((error) => {
   log(error.message);
 });
 loadReports().catch(() => {});
+loadAiTarget().catch(() => {});

@@ -19,6 +19,7 @@
         <button class="nav active" data-view="intraday">盘中决策</button>
         <button class="nav" data-view="strategy">策略包扫描</button>
         <button class="nav" data-view="weekly">周末板块轮动</button>
+        <button class="nav" data-view="ai">AI 分析同步</button>
         <button class="nav" data-view="reports">报告中心</button>
         <button class="nav" data-view="settings">迁移与配置</button>
       </nav>
@@ -84,6 +85,21 @@
             <label class="check"><input id="weekly-skip-daily" type="checkbox" /> 跳过日频窗口抓取</label>
           </div>
           <button id="run-weekly" class="primary">生成周报</button>
+        </div>
+      </section>
+
+      <section id="view-ai" class="view">
+        <div class="panel">
+          <h3>同步 AI 深度分析</h3>
+          <p class="hint">先用 Codex 的 a-share-intraday-decision skill 生成 ai_analysis JSON，再粘贴到这里同步到 dashboard。</p>
+          <div id="ai-target" class="commands">读取最新 checkpoint 中...</div>
+          <textarea id="ai-analysis-json" placeholder='{"headline":"...","summary":"..."}'></textarea>
+          <div class="form-grid">
+            <label>交易日 <input id="ai-date" type="date" /></label>
+            <label>checkpoint <input id="ai-checkpoint" placeholder="留空 = 最新 checkpoint" /></label>
+          </div>
+          <button id="refresh-ai-target" class="ghost">刷新目标</button>
+          <button id="sync-ai-analysis" class="primary">同步到前端 AI 卡片</button>
         </div>
       </section>
 

@@ -30,11 +30,37 @@ http://127.0.0.1:8765
 
 ## 页面功能
 
-- 盘中决策：运行 09:25、09:45、10:30、11:20、13:30、14:30、15:10 扫描。
-- 策略包扫描：运行 `scan_strategy.py`，默认保留前四个策略和 5 亿流通股上限。
+- 盘中决策：运行 09:25、09:45、10:30、11:20、13:30、14:30、15:10 扫描；完成后自动刷新 `public/data/site.json`。
+- 策略包扫描：运行策略包；完成后自动刷新 `public/data/site.json`。
 - 周末板块轮动：运行 `a_share_rotation_research/src/weekly_runner.py`。
+- AI 分析同步：把 Codex skill 生成的 `ai_analysis` JSON 写回 dashboard 的 `AI 深度分析` 卡片。
 - 报告中心：预览最近生成的 Markdown、CSV 和 JSON。
 - 迁移与配置：查看当前项目路径，使用备份/恢复脚本。
+
+## 推荐工作流
+
+1. 启动工具台：
+
+```bash
+cd "/Users/char/Desktop/04 investment/a_share_research_toolkit"
+./start.sh
+```
+
+2. 在工具台运行盘中扫描或策略包。工具台会调用：
+
+```bash
+python3 a_share_research_toolkit/scripts/run_intraday_and_publish.py --no-push --no-commit
+```
+
+扫描原始文件写入 `tool/intraday_exports/<date>/scan_*`，前端数据写入 `public/data/site.json`。
+
+3. 需要 AI 分析时，对 Codex 说“用 a-share-intraday-decision 分析最新 checkpoint”。Codex 生成 JSON 后，可用工具台的“AI 分析同步”页粘贴同步，或直接运行：
+
+```bash
+python3 a_share_research_toolkit/scripts/sync_ai_analysis.py --input /path/to/ai_analysis.json
+```
+
+同步脚本会自动从 `public/data/site.json` 找最新 checkpoint，写入 `ai_analysis.json` / `data/ai_analysis_overrides`，并重新生成 dashboard 数据。
 
 ## 分享给朋友
 

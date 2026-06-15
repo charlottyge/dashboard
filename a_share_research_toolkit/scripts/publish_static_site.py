@@ -266,7 +266,7 @@ def build_checkpoint_packet(directory: Path) -> dict:
     decision = read_json(directory / "checkpoint_decision_summary.json") if (directory / "checkpoint_decision_summary.json").exists() else {}
     if not decision:
         decision = synthesize_decision(directory, summary, table_map)
-    ai_analysis = read_json(directory / "ai_analysis.json") if (directory / "ai_analysis.json").exists() else {}
+    ai_analysis = ai_analysis_for_checkpoint(directory)
     return {
         "id": directory.name,
         "label": checkpoint_label(directory.name, summary),
@@ -278,6 +278,14 @@ def build_checkpoint_packet(directory: Path) -> dict:
         "ai_analysis": ai_analysis,
         "tables": tables,
     }
+
+
+def ai_analysis_for_checkpoint(directory: Path) -> dict:
+    raw_path = directory / "ai_analysis.json"
+    raw = read_json(raw_path) if raw_path.exists() else {}
+    override_path = DATA_ROOT / "ai_analysis_overrides" / f"{directory.parent.name}_{directory.name}.json"
+    override = read_json(override_path) if override_path.exists() else {}
+    return override or raw
 
 
 def checkpoint_label(name: str, summary: dict) -> str:
