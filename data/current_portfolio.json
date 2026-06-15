@@ -1,6 +1,6 @@
 {
   "source": "/Users/char/Library/Mobile Documents/com~apple~CloudDocs/Obsidian Vault/investment/portfolio.md",
-  "modified": "2026-06-11T09:31:34",
+  "modified": "2026-06-15T09:03:34",
   "latest_date": "2026-06-08",
   "base_holdings": [
     {
@@ -24,18 +24,18 @@
     {
       "code": "300346",
       "name": "南大光电",
-      "shares_total": "500",
-      "avg_cost": "62.338",
-      "current_snapshot": "61.72",
+      "shares_total": "400",
+      "avg_cost": "63.748",
+      "current_snapshot": "59.39",
       "shares_added_recently": "",
       "last_add_price": ""
     },
     {
       "code": "300433",
       "name": "蓝思科技",
-      "shares_total": "1500",
-      "avg_cost": "45.333",
-      "current_snapshot": "41.18",
+      "shares_total": "800",
+      "avg_cost": "48.693",
+      "current_snapshot": "41.14",
       "shares_added_recently": "",
       "last_add_price": ""
     },
@@ -61,8 +61,8 @@
       "code": "688143",
       "name": "长盈通",
       "shares_total": "237",
-      "avg_cost": "164.146",
-      "current_snapshot": "191.24",
+      "avg_cost": "166.734",
+      "current_snapshot": "179",
       "shares_added_recently": "",
       "last_add_price": ""
     }

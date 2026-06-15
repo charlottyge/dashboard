@@ -384,12 +384,12 @@ def _table_cards(names: list[str], table_by_name: dict[str, dict]) -> list[dict]
 def _sector_name(row: dict) -> str:
     name = row.get("板块") or row.get("sector") or ""
     pct = row.get("涨幅") or row.get("板块涨幅") or ""
-    rank = row.get("涨幅排名") or row.get("板块排名") or row.get("当前排名") or ""
+    breadth = row.get("涨家率") or ""
     detail = []
-    if rank:
-        detail.append(f"排名{rank}")
     if pct:
         detail.append(f"{pct}%")
+    if breadth:
+        detail.append(f"涨家率{breadth}")
     return f"{name}（{'，'.join(detail)}）" if name and detail else name
 
 
@@ -438,13 +438,13 @@ def _checkpoint_demo_text(
     market_text = _market_sentence(market)
     if checkpoint_id == "scan_1030":
         headline = "第一轮换手确认：CPO / 光通信链条成为上午主攻"
-        verdict = f"{market_text} 板块前排是 {sectors_text}，候选表给出 {candidate_count} 条，其中 {vwap_up_count} 条在 VWAP 上方，说明这个时点不是单纯看涨幅，而是在确认强线承接。"
+        verdict = f"{market_text} 当前强势板块是 {sectors_text}，候选表给出 {candidate_count} 条，其中 {vwap_up_count} 条在 VWAP 上方，说明这个时点不是单纯看涨幅，而是在确认强线承接。"
         points = [
             f"输入：用 {data_source} 板块、全 A 报价、分时 VWAP、watchlist 共同筛选。",
             f"输出：候选集中在 {stocks_text}，用于区分放量突破、watchlist 和风险处理。",
-            "判断：强线可以继续观察，但买点必须等 VWAP 和高点回撤不恶化，不能只因排名第一就追。",
+            "判断：强线可以继续观察，但买点必须等 VWAP 和高点回撤不恶化，不能只因涨幅靠前就追。",
         ]
-        questions = ["11:20 时 CPO / 光通信是否仍在前排？", "候选股是否继续在 VWAP 上方？", "冲高股有没有出现明显长上影或高点回撤？"]
+        questions = ["11:20 时 CPO / 光通信是否仍保持强度？", "候选股是否继续在 VWAP 上方？", "冲高股有没有出现明显长上影或高点回撤？"]
     elif checkpoint_id == "scan_1120":
         headline = "上午收尾：确认候选承接，避免午前追涨"
         verdict = f"{market_text} 数据源切到 {data_source}，候选检查仍有 {candidate_count} 条，{vwap_up_count} 条在 VWAP 上方；这里的重点是午后计划，不是新增冲动买点。"
@@ -467,7 +467,7 @@ def _checkpoint_demo_text(
         questions = ["候选是否接近高位但未涨停？", "成交量是否符合策略定义而不是单日异动？", "流通股过滤后是否仍有足够可执行标的？"]
     elif checkpoint_id == "scan_1430":
         headline = "尾盘确认：早盘科技强线回落，资源 / 电力行业靠前"
-        verdict = f"{market_text} 尾盘前排板块变成 {sectors_text}；候选表仍有 {candidate_count} 条，但已经开始区分强阳接近高位、长上影和 VWAP 失守。"
+        verdict = f"{market_text} 尾盘强势板块变成 {sectors_text}；候选表仍有 {candidate_count} 条，但已经开始区分强阳接近高位、长上影和 VWAP 失守。"
         points = [
             "输入：尾盘市场确认、板块确认、候选确认和持仓确认表。",
             f"输出：尾盘观察重点包括 {stocks_text}。",
@@ -476,7 +476,7 @@ def _checkpoint_demo_text(
         questions = ["收盘接近高点的标的能否进入明日观察？", "长上影且 VWAP 下方的标的是否降级？", "尾盘强行业是否只是防守切换？"]
     elif checkpoint_id == "scan_1510":
         headline = "盘后复盘：保存明日计划和风险样本"
-        verdict = f"{market_text} 收盘板块前排为 {sectors_text}，盘后个股表保留 {candidate_count} 条复盘样本，用于明日 watchlist 和学习。"
+        verdict = f"{market_text} 收盘强势板块为 {sectors_text}，盘后个股表保留 {candidate_count} 条复盘样本，用于明日 watchlist 和学习。"
         points = [
             "输入：盘后市场、最终板块、最终个股和持仓复盘表。",
             f"输出：复盘样本包括 {stocks_text}。",
@@ -485,9 +485,9 @@ def _checkpoint_demo_text(
         questions = ["明天开盘强线是否延续，还是继续切到防守行业？", "今天长上影样本是否需要降低观察权重？", "watchlist 中哪些个股必须先过 VWAP 或关键位？"]
     else:
         headline = f"{summary.get('checkpoint', checkpoint_id)} checkpoint 复盘"
-        verdict = f"{market_text} 前排板块是 {sectors_text}，候选/输出共 {candidate_count} 条。"
+        verdict = f"{market_text} 强势板块是 {sectors_text}，候选/输出共 {candidate_count} 条。"
         points = [f"输入源：{data_source}。", f"主要候选：{stocks_text}。"]
-        questions = ["下一 checkpoint 继续验证排名、VWAP 和高点回撤。"]
+        questions = ["下一 checkpoint 继续验证板块成交、VWAP 和高点回撤。"]
     return headline, verdict, points, questions
 
 
@@ -735,6 +735,14 @@ def latest_weekly_report() -> dict | None:
     }
 
 
+def load_preopen_plan() -> dict:
+    path = DATA_ROOT / "preopen_plan.json"
+    if not path.exists():
+        return {}
+    payload = read_json(path)
+    return payload if isinstance(payload, dict) else {}
+
+
 def build_payload() -> dict:
     latest_intraday_dir = find_latest_dir("scan_", exclude_fragments={"strategy"})
     latest_strategy_dir = find_latest_dir("strategy")
@@ -778,6 +786,7 @@ def build_payload() -> dict:
             "tables": csv_if_exists(latest_strategy_dir, ["strategy_summary.csv", "strategy_candidates.csv"]),
         },
         "latest_weekly": latest_weekly_report(),
+        "preopen_plan": load_preopen_plan(),
         "timeline_days": scan_dirs_by_day(),
         "watchlist": watchlist,
         "portfolio": portfolio,

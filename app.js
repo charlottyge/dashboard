@@ -266,7 +266,7 @@ function renderSectorOverviewCard(checkpoint) {
   return `
     <article class="overview-card">
       <h3>板块分析概况</h3>
-      <p>${escapeHtml(top.length ? `当前热门板块：${top.join("、")}。` : "当前板块前排不清晰。")}</p>
+      <p>${escapeHtml(top.length ? `当前热门板块：${top.join("、")}。` : "当前板块强度不清晰。")}</p>
       <p>${escapeHtml(sectorChangeText(checkpoint))}</p>
       <p>${escapeHtml(sectorFocusText(checkpoint))}</p>
     </article>
@@ -393,16 +393,16 @@ function sectorChangeText(checkpoint) {
   const added = currentNames.filter((name) => !prevNames.includes(name)).slice(0, 3);
   const dropped = prevNames.filter((name) => !currentNames.includes(name)).slice(0, 3);
   const parts = [];
-  if (added.length) parts.push(`${added.join("、")} 新进前排`);
-  if (dropped.length) parts.push(`${dropped.join("、")} 退出前排`);
-  return parts.length ? `较上一时间点：${parts.join("；")}。` : "较上一时间点：前排板块变化不大，继续看中军和扩散。";
+  if (added.length) parts.push(`${added.join("、")} 强度改善`);
+  if (dropped.length) parts.push(`${dropped.join("、")} 强度回落`);
+  return parts.length ? `较上一时间点：${parts.join("；")}。` : "较上一时间点：板块强弱结构变化不大，继续看中军和扩散。";
 }
 
 function sectorFocusText(checkpoint) {
   const rows = sectorRowsForCheckpoint(checkpoint);
   const names = rows.slice(0, 3).map((row) => row["板块"] || row["name"]).filter(Boolean);
-  if (!names.length) return "关注重点：先等待板块排名和成交额重新清晰。";
-  return `关注重点：${names.join("、")} 是否继续在前排，同时看中军是否站稳 VWAP，避免只看板块涨幅。`;
+  if (!names.length) return "关注重点：先等待板块成交额、涨家率和领涨股重新清晰。";
+  return `关注重点：${names.join("、")} 的成交额、涨家率和领涨股是否同步，同时看中军是否站稳 VWAP。`;
 }
 
 function renderPortfolioWorkbench(checkpoint) {
@@ -410,28 +410,19 @@ function renderPortfolioWorkbench(checkpoint) {
   const priority = checkpoint.decision?.portfolio_priority || [];
   if (!signals.length && !priority.length) return '<p class="empty">暂无持仓数据。请检查最近日期 portfolio.md 是否有持仓块。</p>';
   return `
+    <div class="priority-defs">
+      <span><b>P0</b> 必须处理</span>
+      <span><b>P1</b> 重点观察</span>
+      <span><b>P2</b> 正常持有</span>
+      <span><b>P3</b> 暂不关注</span>
+    </div>
     ${signals.length ? `<div class="stock-signal-grid">${signals.map(renderPortfolioSignalCard).join("")}</div>` : ""}
   `;
 }
 
 function renderMarketSectorsSection(checkpoint, decision) {
-  const rows = sectorRowsForCheckpoint(checkpoint).slice(0, 12);
-  const cards = rows.map((row, index) => {
-    const name = row["板块"] || row["name"] || "-";
-    const pct = row["涨幅"] || row["板块涨幅"] || row["涨幅%"] || "";
-    const rank = row["涨幅排名"] || row["板块排名"] || row["当前排名"] || index + 1;
-    const amount = row["成交额"] || row["成交额(亿)"] || "";
-    return `
-      <article class="sector-card">
-        <strong>${escapeHtml(name)}</strong>
-        <span>${escapeHtml([`排名 ${rank}`, pct ? `${pct}%` : "", amount ? `成交 ${formatAmount(amount)}` : ""].filter(Boolean).join(" · "))}</span>
-        <p>${escapeHtml(sectorTeachingText(name))}</p>
-      </article>
-    `;
-  });
   return `
     <div class="section-note">${escapeHtml(sectorChangeText(checkpoint))}</div>
-    ${cards.length ? `<div class="sector-grid">${cards.join("")}</div>` : '<p class="empty">暂无板块扫描表。</p>'}
     <div class="mainline-groups compact">
       ${renderMainlineGroup("仍在走强", (decision.confirmed_mainlines || []).slice(0, 4), "strong")}
       ${renderMainlineGroup("走弱 / 不再主攻", (decision.weakening_mainlines || []).slice(0, 4), "weak")}
@@ -443,20 +434,26 @@ function renderMarketSectorsSection(checkpoint, decision) {
 function sectorTeachingText(name) {
   if (/CPO|光通信|光纤|算力|半导体|芯片|存储/.test(name)) return "科技成长方向，重点看中军承接和个股扩散。";
   if (/煤炭|石油|电力|银行|保险|红利/.test(name)) return "资源/防守方向，重点看是否能在科技分歧时逆势。";
-  if (/次新/.test(name)) return "情绪弹性方向，重点看次日承接，不适合只按排名追。";
-  return "只看排名不够，还要看成交额、中军和持续性。";
+  if (/次新/.test(name)) return "情绪弹性方向，重点看次日承接，不适合只按涨幅追。";
+  return "只看涨幅不够，还要看成交额、中军和持续性。";
 }
 
 function renderWatchlistWorkbench(checkpoint) {
   const items = watchlistSignalItems(checkpoint);
   if (!items.length) return '<p class="empty">暂无最近日期 watchlist 数据。</p>';
-  const groups = groupBy(items, (item) => `${item.sector || "未标注板块"}｜${item.priority || "P2"}`);
-  return [...groups.entries()].map(([group, rows]) => `
-    <div class="watchlist-group">
-      <h4>${escapeHtml(group)}</h4>
-      <div class="stock-signal-grid">${rows.map(renderStockSignalCard).join("")}</div>
-    </div>
-  `).join("");
+  const focus = items.filter(isWorthWatching).sort(watchlistSort);
+  const hidden = items.filter((item) => !isWorthWatching(item)).sort(watchlistSort);
+  return `
+    ${focus.length ? `<div class="stock-signal-grid">${focus.map(renderWatchlistSignalCard).join("")}</div>` : '<p class="empty">当前 watchlist 暂无明显值得重点关注的个股。</p>'}
+    ${
+      hidden.length
+        ? `<details class="collapsed-stock-list">
+            <summary>展开其他 watchlist（${hidden.length} 只）</summary>
+            <div class="stock-signal-grid">${hidden.map(renderWatchlistSignalCard).join("")}</div>
+          </details>`
+        : ""
+    }
+  `;
 }
 
 function renderNewCandidatesWorkbench(checkpoint) {
@@ -528,47 +525,43 @@ function newCandidateItems(checkpoint) {
 
 function buildStockSignal({ name, code, priority, priorityItem, sector, role, note, row, kind }) {
   const tradeAlerts = tradeAlertTexts(row);
-  const news = row["新闻"] || row["news"] || "未接入实时新闻源";
-  const announcement = row["公告"] || row["announcement"] || "未接入公告源";
+  const news = meaningfulExternalText(row["新闻"] || row["news"]);
+  const announcement = meaningfulExternalText(row["公告"] || row["announcement"]);
   const action = stockSignalAction(priority, tradeAlerts, kind);
   return { name, code, priority, priorityItem, sector, role, note, row, kind, tradeAlerts, news, announcement, action };
 }
 
 function renderPortfolioSignalCard(item) {
   const insight = buildPortfolioInsight(item.priorityItem || { stock: [item.name, item.code].filter(Boolean).join(" "), priority: item.priority });
+  const plan = portfolioTimeframePlan(item, insight);
+  const abnormal = abnormalMoveText(item);
   return `
     <article class="stock-signal-card portfolio-signal-card ${item.priority === "P0" ? "urgent" : ""}">
       <div class="candidate-topline">
-        <strong>${escapeHtml(`${insight.label}｜${[item.name, item.code].filter(Boolean).join(" ")}`)}</strong>
-        <b>${escapeHtml(insight.type)}</b>
+        <strong>${escapeHtml([item.name, item.code].filter(Boolean).join(" "))}</strong>
       </div>
-      <span>${escapeHtml([item.sector, item.role].filter(Boolean).join(" · ") || "-")}</span>
-      <p>为什么是 ${escapeHtml(insight.priority)}：${escapeHtml(insight.why)}</p>
-      <p>成本 / 当前 / 盈亏：${escapeHtml(insight.position)}</p>
-      <p>状态：${escapeHtml(insight.status)}</p>
-      <p>关键线：${escapeHtml(insight.lines)}</p>
-      <p>交易异动：${escapeHtml(item.tradeAlerts.length ? item.tradeAlerts.join("；") : "暂无明显交易异动。")}</p>
-      <p>新闻：${escapeHtml(item.news)}</p>
-      <p>公告：${escapeHtml(item.announcement)}</p>
-      <p>动作：${escapeHtml(insight.action || item.action)}</p>
-      ${item.note ? `<em>${escapeHtml(item.note)}</em>` : ""}
+      <p>走势 / 成交量：${escapeHtml(stockTrendVolumeText(item))}</p>
+      <p>状态：${escapeHtml(portfolioStatusText(item, insight))}</p>
+      <p>观察线：短线 ${escapeHtml(plan.lines.short)}｜中线 ${escapeHtml(plan.lines.mid)}｜长线 ${escapeHtml(plan.lines.long)}</p>
+      <p>动作：短线 ${escapeHtml(plan.actions.short)}｜中线 ${escapeHtml(plan.actions.mid)}｜长线 ${escapeHtml(plan.actions.long)}</p>
+      ${abnormal ? `<p>异动：${escapeHtml(abnormal)}</p>` : ""}
+      ${item.news ? `<p>新闻：${escapeHtml(item.news)}</p>` : ""}
+      ${item.announcement ? `<p>公告：${escapeHtml(item.announcement)}</p>` : ""}
     </article>
   `;
 }
 
-function renderStockSignalCard(item) {
+function renderWatchlistSignalCard(item) {
   return `
     <article class="stock-signal-card ${item.priority === "P0" ? "urgent" : ""}">
       <div class="candidate-topline">
         <strong>${escapeHtml([item.name, item.code].filter(Boolean).join(" "))}</strong>
-        <b>${escapeHtml(item.priority || "P2")}</b>
       </div>
-      <span>${escapeHtml([item.sector, item.role].filter(Boolean).join(" · ") || "-")}</span>
-      <p>交易异动：${escapeHtml(item.tradeAlerts.length ? item.tradeAlerts.join("；") : "暂无明显交易异动。")}</p>
-      <p>新闻：${escapeHtml(item.news)}</p>
-      <p>公告：${escapeHtml(item.announcement)}</p>
-      <p>动作：${escapeHtml(item.action)}</p>
-      ${item.note ? `<em>${escapeHtml(item.note)}</em>` : ""}
+      <p>走势 / 成交量：${escapeHtml(stockTrendVolumeText(item))}</p>
+      <p>板块情况：${escapeHtml(watchlistSectorText(item))}</p>
+      <p>为什么值得关注：${escapeHtml(watchlistFocusReason(item))}</p>
+      <p>下一步动作：${escapeHtml(watchlistNextAction(item))}</p>
+      <p>买入评级：${escapeHtml(watchlistBuyRating(item))}</p>
     </article>
   `;
 }
@@ -586,6 +579,157 @@ function tradeAlertTexts(row) {
   if (relative === "False" || relative === "否") alerts.push("弱于所属板块");
   if (row.invalid_condition === "是") alerts.push("触发风险条件");
   return alerts;
+}
+
+function meaningfulExternalText(text) {
+  const value = String(text || "").trim();
+  if (!value) return "";
+  if (/未接入|unavailable|暂无|无明显|没有/.test(value)) return "";
+  return value;
+}
+
+function stockTrendVolumeText(item) {
+  const row = item.row || {};
+  const trend = row["走势自然语言"] || row["走势"] || row["日K形态"] || trendLanguage(row);
+  return [trend, volumeLanguage(row)].filter(Boolean).join(" ");
+}
+
+function trendLanguage(row) {
+  const pct = row["当前涨幅"] || row["当前涨幅%"] || row["收盘涨幅"] || row["pct"] || "";
+  const drawdown = num(row["高点回撤%"] || row["今日高点回撤%"]);
+  const vwap = candidateVwapState(row);
+  const parts = [];
+  if (pct !== "") parts.push(`当前涨幅 ${pct}%`);
+  if (vwap === "上") parts.push("价格在 VWAP 上方，盘中承接尚可");
+  if (vwap === "下") parts.push("价格在 VWAP 下方，承接偏弱");
+  if (drawdown <= -5) parts.push(`高点回撤 ${drawdown}%，冲高回落明显`);
+  else if (drawdown < 0) parts.push(`高点回撤 ${drawdown}%，仍需看回落承接`);
+  if (!parts.length) return "走势数据不足，先按下一 checkpoint 复核。";
+  return `${parts.join("，")}。`;
+}
+
+function abnormalMoveText(item) {
+  const row = item.row || {};
+  const alerts = (item.tradeAlerts || []).filter((text) => /回撤|风险|弱于|VWAP 下方/.test(text));
+  const risk = meaningfulExternalText(row["异动"] || row["异常"] || row["风险标记"] || "");
+  return [risk, ...alerts].filter(Boolean).join("；");
+}
+
+function volumeLanguage(row) {
+  const ratio = num(row["量比"] || row["volume_ratio"]);
+  const amount = row["成交额"] || row["成交额(亿)"] || "";
+  const parts = [];
+  if (ratio >= 3) parts.push(`量比 ${ratio.toFixed(1)}，明显放量`);
+  else if (ratio >= 1.5) parts.push(`量比 ${ratio.toFixed(1)}，温和放量`);
+  else if (ratio > 0 && ratio < 0.8) parts.push(`量比 ${ratio.toFixed(1)}，成交偏缩`);
+  else if (ratio > 0) parts.push(`量比 ${ratio.toFixed(1)}，成交正常`);
+  if (amount !== "") parts.push(`成交额 ${formatAmount(amount)}`);
+  return parts.length ? `成交量：${parts.join("，")}。` : "";
+}
+
+function isWorthWatching(item) {
+  const row = item.row || {};
+  const pct = num(row["当前涨幅"] || row["当前涨幅%"] || row["收盘涨幅"] || row["pct"]);
+  const vwap = candidateVwapState(row);
+  const strong = row.relative_strength_vs_sector === "True" || row["是否强于板块"] === "是";
+  const source = `${row["来源"] || ""} ${item.note || ""}`;
+  if (item.priority === "P0" || item.priority === "P1") return true;
+  if (vwap === "上" && (strong || pct >= 2)) return true;
+  if (/放量突破|缩量回踩|策略|重点|核心/.test(source) && vwap !== "下") return true;
+  return false;
+}
+
+function watchlistSort(a, b) {
+  const rank = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  const ar = rank[a.priority] ?? 4;
+  const br = rank[b.priority] ?? 4;
+  if (ar !== br) return ar - br;
+  return watchScore(b) - watchScore(a);
+}
+
+function watchScore(item) {
+  const row = item.row || {};
+  let score = 0;
+  if (candidateVwapState(row) === "上") score += 2;
+  if (row.relative_strength_vs_sector === "True" || row["是否强于板块"] === "是") score += 2;
+  if (num(row["当前涨幅"] || row["当前涨幅%"] || row["收盘涨幅"] || row["pct"]) >= 2) score += 1;
+  if (num(row["量比"] || row["volume_ratio"]) >= 1.5) score += 1;
+  return score;
+}
+
+function watchlistSectorText(item) {
+  const row = item.row || {};
+  const sector = item.sector || "未匹配板块";
+  const sectorPct = row["板块涨幅"] || row["sector_pct"] || "";
+  const relative = row.relative_strength_vs_sector === "True" || row["是否强于板块"] === "是"
+    ? "强于所属板块"
+    : row.relative_strength_vs_sector === "False" || row["是否强于板块"] === "否"
+    ? "弱于所属板块"
+    : "相对板块强弱待确认";
+  return `${sector}${sectorPct !== "" ? `涨幅 ${sectorPct}%` : ""}，${relative}。`;
+}
+
+function watchlistFocusReason(item) {
+  const row = item.row || {};
+  const reasons = [];
+  if (candidateVwapState(row) === "上") reasons.push("站在 VWAP 上方，说明盘中承接暂时可看");
+  if (num(row["量比"] || row["volume_ratio"]) >= 1.5) reasons.push("成交量放大，资金参与度提高");
+  if (row.relative_strength_vs_sector === "True" || row["是否强于板块"] === "是") reasons.push("强于所属板块，不是单纯跟涨");
+  if (item.priority === "P0" || item.priority === "P1") reasons.push("watchlist 重要级靠前，需要优先验证");
+  if (!reasons.length) return "暂时没有形成强信号，放在折叠区，只做低频观察。";
+  return `${reasons.join("；")}。`;
+}
+
+function watchlistNextAction(item) {
+  const row = item.row || {};
+  const rating = watchlistBuyRating(item);
+  if (rating.includes("不追")) return "不追高；等回落承接、VWAP 修复或下一 checkpoint 重新确认。";
+  if (rating.includes("观察买点")) return "只在站稳 VWAP、强于板块且回撤不破关键位时观察，不把单点信号当买入指令。";
+  return "继续跟踪板块和个股承接，未触发条件前不行动。";
+}
+
+function watchlistBuyRating(item) {
+  const row = item.row || {};
+  const pct = num(row["当前涨幅"] || row["当前涨幅%"] || row["收盘涨幅"] || row["pct"]);
+  const drawdown = num(row["高点回撤%"] || row["今日高点回撤%"]);
+  const vwap = candidateVwapState(row);
+  const strong = row.relative_strength_vs_sector === "True" || row["是否强于板块"] === "是";
+  if (pct >= 8 || drawdown <= -5 || vwap === "下") return "C｜不追";
+  if (vwap === "上" && strong && pct >= 1.5) return "A｜观察买点";
+  if (isWorthWatching(item)) return "B｜继续观察";
+  return "D｜低优先";
+}
+
+function portfolioStatusText(item, insight) {
+  const map = {
+    P0: "必须处理：风险已触发或接近触发，先看修复，不补弱。",
+    P1: "重点观察：还没完全失效，但接近关键位置。",
+    P2: "正常持有：未见明确失效，按计划等待下一次确认。",
+    P3: "暂不关注：当前没有明确触发条件，低频复核。",
+  };
+  return `${map[item.priority] || map.P2} ${insight.status || ""}`.trim();
+}
+
+function portfolioTimeframePlan(item, insight) {
+  const row = item.row || {};
+  const current = row["当前价"] || row.current_price || "";
+  const shortRisk = row["关键位"] || row["上午低点"] || "VWAP / 上午低点";
+  const midRisk = row["昨收"] || row["昨日低点"] || row["计划失效线"] || "昨日低点 / 5日线";
+  const longRisk = row["中线失效线"] || row["长期逻辑"] || "持仓 thesis / 周线结构";
+  const weak = item.priority === "P0" || candidateVwapState(row) === "下";
+  const active = candidateVwapState(row) === "上" && (row.relative_strength_vs_sector === "True" || row["是否强于板块"] === "是");
+  return {
+    lines: {
+      short: current ? `当前 ${current}，看 ${shortRisk}` : shortRisk,
+      mid: midRisk,
+      long: longRisk,
+    },
+    actions: {
+      short: weak ? "不补仓；下一 checkpoint 不修复则降风险" : active ? "继续看 VWAP 和板块强弱" : "等待承接确认",
+      mid: weak ? "跌破计划线则降低仓位或退出观察" : "只要逻辑线未破，按中线计划复核",
+      long: "只看 thesis 是否失效，不因盘中单点波动改长期判断",
+    },
+  };
 }
 
 function stockSignalAction(priority, alerts, kind) {
@@ -673,10 +817,10 @@ function turnoverConfirmText(checkpoint) {
     : `涨跌家数为 ${market["涨跌家数"] || "-"}，需要继续看赚钱效应是否扩散。`;
   const vwapQuality = vwapUp === 0
     ? `候选 ${candidateCount} 条里没有站上 VWAP 的明确买点，这是承接不足信号。当前不能把板块涨幅等同于个股承接。`
-    : `候选 ${candidateCount} 条里有 ${vwapUp} 条站上 VWAP，但仍要区分中军承接和小票脉冲，不能只看涨幅排名。`;
+    : `候选 ${candidateCount} 条里有 ${vwapUp} 条站上 VWAP，但仍要区分中军承接和小票脉冲，不能只看板块涨幅。`;
   const mainline = topSectors.length
-    ? `板块前排集中在 ${topSectors.join("、")}，说明资金早盘回流 AI 硬件 / 光通信方向。`
-    : "板块前排不清晰，10:30 不能升级为主线确认。";
+    ? `板块强势方向集中在 ${topSectors.join("、")}，说明资金早盘回流 AI 硬件 / 光通信方向。`
+    : "板块强度不清晰，10:30 不能升级为主线确认。";
   return [
     `10:30 换手确认：指数强、科技强，但个股仍分化。${indexText}，${breadth}`,
     `${mainline}${vwapQuality}`,
@@ -708,7 +852,7 @@ function afterCloseReviewText(checkpoint) {
   const [up, down] = parsePair(market["涨跌家数"]);
   const [limitUp, limitDown] = parsePair(market["涨停/跌停"]);
   const breadthText = up && down && up < down ? `但涨跌家数为 ${up}/${down}，说明指数上涨并不等于普涨，资金集中在少数方向。` : `涨跌家数为 ${market["涨跌家数"] || "-"}，需要结合板块扩散判断赚钱效应。`;
-  const topText = topSectors.length ? `收盘前排是 ${topSectors.join("、")}。${afterCloseSectorQuality(topSectors)}` : "收盘前排方向不清晰，明天先看竞价和 09:45 排名。";
+  const topText = topSectors.length ? `收盘强势方向是 ${topSectors.join("、")}。${afterCloseSectorQuality(topSectors)}` : "收盘强势方向不清晰，明天先看竞价和 09:45 承接。";
   const emotionText = limitUp || limitDown ? `涨停 ${limitUp} 家、跌停 ${limitDown} 家，情绪没有崩，但整体扩散不足。` : "";
   return [
     `今日盘面：指数修复，但个股分化。${indexText.join("、")}，${breadthText}`,
@@ -716,16 +860,16 @@ function afterCloseReviewText(checkpoint) {
     `主线与板块结构：${topText}`,
     afterCloseHoldingSentence(checkpoint),
     afterCloseCandidateSentence(checkpoint),
-    `明日预案：第一，看 ${topSectors[0] || "前排方向"} 是否只是当日情绪，还是能在竞价和 09:45 延续；第二，看资源/防守方向能否在科技分歧时逆势；第三，如果科创/创业继续强但个股仍跌多涨少，就降低出手频率，只看强分支确认。`,
+    `明日预案：第一，看 ${topSectors[0] || "强势方向"} 是否只是当日情绪，还是能在竞价和 09:45 延续；第二，看资源/防守方向能否在科技分歧时逆势；第三，如果科创/创业继续强但个股仍跌多涨少，就降低出手频率，只看强分支确认。`,
   ].filter(Boolean).join("\n\n");
 }
 
 function afterCloseSectorQuality(names) {
   return names.map((name) => {
-    if (/次新/.test(name)) return `${name}偏情绪弹性，持续性要看明天竞价和 09:45 承接，不能因为排名第一就追。`;
+    if (/次新/.test(name)) return `${name}偏情绪弹性，持续性要看明天竞价和 09:45 承接，不能因为涨幅靠前就追。`;
     if (/石油|煤炭|电力|银行|保险|红利/.test(name)) return `${name}偏资源/防守修复，只有在科技分歧时仍强，才说明防守线有效。`;
     if (/CPO|光通信|半导体|芯片|科创|电子/.test(name)) return `${name}偏科技成长，重点看是否从指数强扩散到个股赚钱效应。`;
-    return `${name}需要看中军、前排、补涨是否同步，不能只看涨幅排名。`;
+    return `${name}需要看中军、领涨股、补涨是否同步，不能只看板块涨幅。`;
   }).join(" ");
 }
 
@@ -869,9 +1013,9 @@ function conclusionText(decision) {
   const focus = (decision.confirmed_mainlines || []).slice(0, 3).map((item) => item.name);
   const weak = (decision.weakening_mainlines || []).slice(0, 3).map((item) => item.name);
   const parts = [];
-  if (focus.length) parts.push(`${focus.join("、")}仍在前排，但需要看结构和中军承接。`);
+  if (focus.length) parts.push(`${focus.join("、")}仍然较强，但需要看结构和中军承接。`);
   if (weak.length) parts.push(`${weak.join("、")}走弱或反抽失败，暂时不要当主攻。`);
-  if (!parts.length) parts.push("当前没有足够明确的主线，先等下一 checkpoint 的排名、VWAP 和持仓风险信号。");
+  if (!parts.length) parts.push("当前没有足够明确的主线，先等下一 checkpoint 的板块成交、VWAP 和持仓风险信号。");
   parts.push(actionBias(decision) === "等确认" ? "当前适合观察承接，不适合盲目追涨。" : "当前可以继续跟踪强线，但仍以证伪条件为准。");
   return parts.join("");
 }
@@ -932,28 +1076,28 @@ function humanStage(item) {
 function lineExplanation(item, mode) {
   if (mode === "weak") {
     if (item.rebound_type === "failed_rebound") return "旧方向反抽失败，今天不要再当主攻。";
-    return "方向转弱或排名回落，先作为风险/温度计观察。";
+    return "方向转弱或强度回落，先作为风险/温度计观察。";
   }
-  if (item.crowding_signal === "high_crowding") return "涨幅或前排热度偏高，不能只看排名追。";
-  if (item.structure_state === "结构待验证") return "排名靠前，但中军、前排、补涨结构还没完全确认。";
-  if (item.structure_state === "结构健康") return "中军、前排和板块宽度较同步，值得继续观察承接。";
-  return "仍在前排，下一步重点看是否能维持排名和 VWAP 承接。";
+  if (item.crowding_signal === "high_crowding") return "涨幅或热度偏高，不能只看涨幅追。";
+  if (item.structure_state === "结构待验证") return "强度靠前，但中军、领涨股、补涨结构还没完全确认。";
+  if (item.structure_state === "结构健康") return "中军、领涨股和板块宽度较同步，值得继续观察承接。";
+  return "仍然较强，下一步重点看是否能维持成交和 VWAP 承接。";
 }
 
 function lineWatch(item) {
-  if (item.crowding_signal === "high_crowding") return "前排是否冲高回落，中军是否继续站稳 VWAP。";
+  if (item.crowding_signal === "high_crowding") return "领涨股是否冲高回落，中军是否继续站稳 VWAP。";
   if (item.structure_state === "结构待验证") return "下一 checkpoint 是否仍在前 5/前 10，核心股是否站稳 VWAP。";
-  return "排名不明显掉队，核心股不跌破 VWAP 或上午低点。";
+  return "板块成交不明显掉队，核心股不跌破 VWAP 或上午低点。";
 }
 
 function beginnerLesson(item, mode) {
   if (mode === "weak") {
     if (item.rebound_type === "failed_rebound") return "反抽失败的意思是资金试过修复但没有成功，不要因为它以前强就幻想马上回来。";
-    return "走弱方向只适合当风险温度计，不适合作为今天主攻。先看它能否重新回到前排。";
+    return "走弱方向只适合当风险温度计，不适合作为今天主攻。先看它能否重新放量修复。";
   }
   if (item.crowding_signal === "high_crowding") return "涨得多不等于可以买。越靠近高位，越需要看有没有人愿意在回落时承接。";
-  if (item.structure_state === "结构待验证") return "排名靠前只说明资金正在看它；中军稳、前排不炸、补涨跟上，才更像主线。";
-  if (item.structure_state === "结构健康") return "中军和前排一起强，说明不是少数小票乱冲，信号质量更高。";
+  if (item.structure_state === "结构待验证") return "涨幅靠前只说明资金正在看它；中军稳、领涨股不炸、补涨跟上，才更像主线。";
+  if (item.structure_state === "结构健康") return "中军和领涨股一起强，说明不是少数小票乱冲，信号质量更高。";
   return "VWAP 可以理解成当天资金平均成本，站在上方说明承接还可以，跌破则说明追涨资金容易被套。";
 }
 
@@ -1139,7 +1283,7 @@ function renderMainlineGroup(title, items, mode) {
 function renderNextWatch(decision) {
   const watches = decision.next_checkpoint_watch || [];
   if (!watches.length) return '<p class="muted">暂无下一步观察。</p>';
-  return `<ol class="next-watch">${watches.slice(0, 6).map((item) => `<li><strong>${escapeHtml(item)}</strong><p>确认：排名维持、核心股站稳 VWAP。证伪：跌出前排、前排冲高回落或持仓风险继续触发。</p></li>`).join("")}</ol>`;
+  return `<ol class="next-watch">${watches.slice(0, 6).map((item) => `<li><strong>${escapeHtml(item)}</strong><p>确认：成交和涨家率维持、核心股站稳 VWAP。证伪：强度掉队、领涨股冲高回落或持仓风险继续触发。</p></li>`).join("")}</ol>`;
 }
 
 function renderTurnoverWatch(checkpoint) {
@@ -1153,18 +1297,18 @@ function renderTurnoverWatch(checkpoint) {
     p0Text,
     "如果候选仍普遍低于 VWAP，科技回流降级为冲高反抽。",
   ];
-  return `<ol class="next-watch">${items.map((item) => `<li><strong>${escapeHtml(item)}</strong><p>确认：板块排名维持、核心股站稳 VWAP、候选不再只是冲高。证伪：核心股跌回 VWAP 下方或前排冲高回落。</p></li>`).join("")}</ol>`;
+  return `<ol class="next-watch">${items.map((item) => `<li><strong>${escapeHtml(item)}</strong><p>确认：板块成交和涨家率维持、核心股站稳 VWAP、候选不再只是冲高。证伪：核心股跌回 VWAP 下方或领涨股冲高回落。</p></li>`).join("")}</ol>`;
 }
 
 function renderTomorrowWatch(checkpoint) {
   const sectors = tableRows(checkpoint, "final_sectors.csv").length ? tableRows(checkpoint, "final_sectors.csv") : tableRows(checkpoint, "market_sector_scan.csv");
   const names = sectors.slice(0, 3).map((row) => row["板块"] || row["name"]).filter(Boolean);
   const items = [
-    `${names[0] || "前排方向"} 是否延续，而不是一日情绪。`,
+    `${names[0] || "强势方向"} 是否延续，而不是一日情绪。`,
     `${names.filter((name) => /石油|煤炭|电力/.test(name)).join(" / ") || "资源/防守线"} 是否能在科技分歧时逆势。`,
     "科创/创业强势是否扩散到个股，而不是只有指数强。",
   ];
-  return `<ol class="next-watch">${items.map((item) => `<li><strong>${escapeHtml(item)}</strong><p>确认：竞价不过热，09:45 仍在前排，中军不跌破 VWAP。证伪：高开低走、只有小票脉冲、涨跌家数继续恶化。</p></li>`).join("")}</ol>`;
+  return `<ol class="next-watch">${items.map((item) => `<li><strong>${escapeHtml(item)}</strong><p>确认：竞价不过热，09:45 仍有成交和涨家率支撑，中军不跌破 VWAP。证伪：高开低走、只有小票脉冲、涨跌家数继续恶化。</p></li>`).join("")}</ol>`;
 }
 
 function renderAvoidList(checkpoint) {
@@ -1176,7 +1320,7 @@ function renderAvoidList(checkpoint) {
   const p0 = (decision.portfolio_priority || []).filter((item) => item.priority === "P0").slice(0, 3);
   const items = [];
   if ((decision.confirmed_mainlines || []).some((item) => item.structure_state === "结构待验证")) {
-    items.push("不要因为板块排名靠前就直接追。结构待验证时，要先看中军、前排和 VWAP。");
+    items.push("不要因为板块涨幅靠前就直接追。结构待验证时，要先看中军、领涨股和 VWAP。");
   }
   if (p0.length) {
     items.push(`不要补弱势持仓。${p0.map((item) => item.stock).join("、")} 是优先处理对象，先看修复线。`);
@@ -1199,7 +1343,7 @@ function renderTurnoverAvoidList(checkpoint) {
   const vwapUp = candidates.filter((row) => candidateVwapState(row) === "上").length;
   const items = [
     "不要把科技指数大涨等同于个股可买，涨跌家数弱时先看承接。",
-    "不要因为 CPO / 光通信排名靠前就追高，10:30 的任务是确认换手，不是追第一波。",
+    "不要因为 CPO / 光通信涨幅靠前就追高，10:30 的任务是确认换手，不是追第一波。",
     "不要补 P0 弱持仓。指数强而个股不修复，问题更可能在个股承接。",
     "不要把候选池当买入清单，核心股没有站稳 VWAP 前只观察。",
   ];
@@ -1212,7 +1356,7 @@ function renderAfterCloseAvoidList(checkpoint) {
   const top = sectors.slice(0, 3).map((row) => row["板块"] || row["name"]).filter(Boolean).join("、");
   const items = [
     "不要把指数上涨理解成普涨。涨跌家数弱时，低位随便扩散买容易踩弱票。",
-    `不要因为 ${top || "前排板块"} 排名靠前就追。盘后只做明日验证计划。`,
+    `不要因为 ${top || "强势板块"} 涨幅靠前就追。盘后只做明日验证计划。`,
     "不要把暂无 P0 理解成持仓全部安全，它只代表没有触发最紧急风控。",
     "不要把候选池当买入清单，明天先看竞价、09:45 承接和 VWAP。",
     "不要把短线题材仓在盘后复盘里改口成中线仓。",
@@ -1230,6 +1374,7 @@ function renderPreopenContent(day) {
   if (!day) {
     return '<p class="empty">暂无盘前预案。</p>';
   }
+  const plan = preopenPlanForDay(day);
   const checkpoints = day.checkpoints || [];
   const first = checkpoints.find((item) => !isStrategyCheckpoint(item)) || checkpoints[0];
   const latest = [...checkpoints].reverse().find((item) => !isStrategyCheckpoint(item)) || checkpoints[checkpoints.length - 1];
@@ -1242,31 +1387,38 @@ function renderPreopenContent(day) {
   const focusSectors = preopenFocusSectors(strongLines, latestSectors);
   const candidateItems = candidateRowsForCheckpoint(strategy || first).rows.map(candidateInsight);
   const candidatePlan = candidateGroups(candidateItems);
-  const portfolioItems = preopenPortfolioPlan(latest);
+  const portfolioItems = preopenPortfolioPlan(latest, plan);
   const fallbackUsed = Boolean(first?.summary?.fallback_used || latest?.summary?.fallback_used);
   const errorCount = Number(first?.summary?.error_count || 0) + Number(latest?.summary?.error_count || 0);
-  const headline = fallbackUsed
+  const headline = plan?.headline || (fallbackUsed
     ? "数据有 fallback，今天只做验证，不放大仓位。"
-    : "高位分化后的验证日，不追高，等 09:45 / 10:30 确认。";
+    : "高位分化后的验证日，不追高，等 09:45 / 10:30 确认。");
+  const keyPoints = plan?.key_points?.length
+    ? plan.key_points
+    : [
+        `${focusSectors[0]?.name || "昨日强线"} 是否能在 09:45 继续有成交和涨家率支撑。`,
+        "旧主线温度计是否拖累科技风险偏好。",
+        "持仓里 P0 / P1 是否开盘修复，不能把弱票中线化。",
+      ];
+  const planBranches = plan?.observation_focus?.branches || [];
+  const planHoldings = plan?.observation_focus?.holdings || [];
 
   return `
     <section class="preopen-hero">
-      <span class="brief-kicker">${escapeHtml(day.date)} · 盘前预案 demo</span>
+      <span class="brief-kicker">${escapeHtml(plan?.date || day.date)} · 盘前预案</span>
       <h2>${escapeHtml(headline)}</h2>
       <p>盘前信息的目标不是收集新闻，而是在开盘前 5 分钟回答：今天验证什么，什么情况下不该动手。</p>
       <div class="pill-row">
-        <span class="pill">风险偏好：${escapeHtml(fallbackUsed ? "中等偏低" : "中等")}</span>
-        <span class="pill">主线状态：分化验证</span>
-        <span class="pill">操作倾向：不追高，等确认</span>
+        <span class="pill">风险偏好：${escapeHtml(plan?.risk_preference || (fallbackUsed ? "中等偏低" : "中等"))}</span>
+        <span class="pill">主线状态：${escapeHtml(plan?.mainline_state || "分化验证")}</span>
+        <span class="pill">操作倾向：${escapeHtml(plan?.action_bias || "不追高，等确认")}</span>
       </div>
     </section>
 
     <section class="preopen-card">
       <h3>今日最重要的 3 件事</h3>
       <ol class="preopen-list">
-        <li>${escapeHtml(focusSectors[0]?.name || "昨日强线")} 是否能在 09:45 继续留在前排。</li>
-        <li>旧主线温度计是否拖累科技风险偏好。</li>
-        <li>持仓里 P0 / P1 是否开盘修复，不能把弱票中线化。</li>
+        ${keyPoints.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
       </ol>
     </section>
 
@@ -1277,7 +1429,7 @@ function renderPreopenContent(day) {
           name: row["板块"] || "-",
           status: "昨日/早盘强分支",
           confirm: "09:45 仍在前 10，10:30 中军站稳 VWAP",
-          invalid: "高开低走，前排冲高回落，中军跌破 VWAP",
+          invalid: "高开低走，领涨股冲高回落，中军跌破 VWAP",
         })))}
         ${renderPreopenLineGroup("昨日分歧线", weakLines.map((item) => ({
           name: item.name,
@@ -1294,30 +1446,25 @@ function renderPreopenContent(day) {
       </section>
 
       <section class="preopen-card">
-        <h3>隔夜新闻 / 外围市场</h3>
-        <div class="preopen-note">
-          <strong>当前 demo 状态</strong>
-          <p>尚未接入实时新闻、外围指数、汇率和商品数据。盘前只预留判断框架，避免把旧数据当实时信号。</p>
-        </div>
-        ${renderSignalRows([
-          ["政策 / 产业新闻", "待更新", "只记录会改变预案的催化，不做新闻堆叠"],
-          ["海外映射", "待更新", "重点看纳指、费半、英伟达/台积电 ADR 对科技情绪的影响"],
-          ["大宗商品", "待更新", "重点看铜、煤、油、黄金是否改变资源/防守线预案"],
-          ["汇率 / 港股科技", "待更新", "只判断是否扰动 A 股风险偏好"],
-        ])}
+        <h3>周末新闻 / 外围线索</h3>
+        ${renderPreopenWeekendNews(plan)}
       </section>
     </div>
 
     <section class="preopen-card">
       <h3>今日重点观察板块</h3>
-      <div class="preopen-sector-grid">
-        ${focusSectors.map(renderPreopenSectorCard).join("") || '<p class="empty">暂无重点观察板块。</p>'}
-      </div>
+      ${planBranches.length ? renderPreopenPlanBranches(planBranches) : `<div class="preopen-sector-grid">${focusSectors.map(renderPreopenSectorCard).join("") || '<p class="empty">暂无重点观察板块。</p>'}</div>`}
     </section>
 
     <section class="preopen-card">
       <h3>今日持仓预案</h3>
-      ${portfolioItems.length ? `<div class="priority-list">${portfolioItems.map(renderPriorityCard).join("")}</div>` : '<p class="empty">暂无持仓预案。请先在持仓管理里补充持仓。</p>'}
+      ${
+        planHoldings.length
+          ? renderPreopenPlanHoldings(planHoldings)
+          : portfolioItems.length
+            ? `<div class="priority-list">${portfolioItems.map(renderPriorityCard).join("")}</div>`
+            : '<p class="empty">暂无持仓预案。请先在持仓管理里补充持仓。</p>'
+      }
     </section>
 
     <section class="preopen-card">
@@ -1332,19 +1479,86 @@ function renderPreopenContent(day) {
     <div class="preopen-grid two">
       <section class="preopen-card avoid-box">
         <h3>今日不要做什么</h3>
-        ${renderPreopenDoNotDo(fallbackUsed)}
+        ${renderPreopenDoNotDo(fallbackUsed, plan)}
       </section>
       <section class="preopen-card">
         <h3>数据可信度</h3>
         ${renderSignalRows([
-          ["最新 demo 日期", day.date, "来自本地静态数据"],
-          ["盘前新闻", "未接入", "不要把新闻框架当实时新闻"],
+          ["盘前计划日期", plan?.date || day.date, plan?.source?.primary || "来自本地静态数据"],
+          ["盘前新闻", plan?.source?.external_news_status ? "待核验" : "未接入", plan?.source?.external_news_status || "不要把新闻框架当实时新闻"],
           ["外围数据", "未接入", "需要后续接入数据源"],
           ["持仓成本", siteData.portfolio?.modified ? "已读取" : "未读取", siteData.portfolio?.source || "portfolio.md"],
           ["fallback", fallbackUsed ? "是" : "否", fallbackUsed ? "今日信号权重降低，只观察不放大仓位" : "信号权重正常"],
           ["错误数", String(errorCount), "采集错误越多，越要降低行动强度"],
         ])}
       </section>
+    </div>
+  `;
+}
+
+function preopenPlanForDay(day) {
+  const plan = siteData?.preopen_plan || {};
+  if (!Object.keys(plan).length) return null;
+  if (plan.date && day?.date && plan.date !== day.date) return null;
+  return plan;
+}
+
+function renderPreopenWeekendNews(plan) {
+  const items = plan?.weekend_news || [];
+  if (!items.length) {
+    return `
+      <div class="preopen-note">
+        <strong>当前状态</strong>
+        <p>尚未接入实时新闻、外围指数、汇率和商品数据。盘前只预留判断框架，避免把旧数据当实时信号。</p>
+      </div>
+      ${renderSignalRows([
+        ["政策 / 产业新闻", "待更新", "只记录会改变预案的催化，不做新闻堆叠"],
+        ["海外映射", "待更新", "重点看纳指、费半、英伟达/台积电 ADR 对科技情绪的影响"],
+        ["大宗商品", "待更新", "重点看铜、煤、油、黄金是否改变资源/防守线预案"],
+        ["汇率 / 港股科技", "待更新", "只判断是否扰动 A 股风险偏好"],
+      ])}
+    `;
+  }
+  return `
+    <div class="signal-list">
+      ${items.map((item) => `
+        <div class="preopen-note">
+          <strong>${escapeHtml(item.title)}</strong>
+          <p>${escapeHtml(item.impact)}</p>
+          <p>${escapeHtml([item.status, item.source].filter(Boolean).join(" · "))}</p>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderPreopenPlanBranches(items) {
+  return `
+    <div class="preopen-sector-grid">
+      ${items.map((item) => `
+        <article class="preopen-sector-card">
+          <strong>${escapeHtml(item.branch)}</strong>
+          <span>${escapeHtml([item.tag, item.anchors].filter(Boolean).join(" · "))}</span>
+          <p>观察条件：${escapeHtml(item.condition || "-")}</p>
+          <p>降级条件：${escapeHtml(item.downgrade || "-")}</p>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderPreopenPlanHoldings(items) {
+  return `
+    <div class="preopen-line-group">
+      ${items.map((item) => `
+        <article class="preopen-line">
+          <strong>${escapeHtml(item.stock)}</strong>
+          <p>今日第一身份：${escapeHtml(item.identity || "-")}</p>
+          <p>买入观察条件：${escapeHtml(item.condition || "-")}</p>
+          <p>卖出 / 降级观察条件：${escapeHtml(item.downgrade || "-")}</p>
+          <p>动作语言：${escapeHtml(item.action || "-")}</p>
+        </article>
+      `).join("")}
     </div>
   `;
 }
@@ -1362,7 +1576,6 @@ function preopenFocusSectors(strongRows, latestRows) {
     .map((row) => ({
       name: row["板块"] || "-",
       role: "今日验证方向",
-      rank: row["涨幅排名"] || row["板块排名"] || "-",
       pct: row["涨幅"] || row["板块涨幅"] || "",
     }))
     .filter((item) => {
@@ -1407,7 +1620,7 @@ function renderPreopenSectorCard(item) {
   return `
     <article class="preopen-sector-card">
       <strong>${escapeHtml(item.name)}</strong>
-      <span>${escapeHtml([item.role, item.rank !== "-" ? `排名 ${item.rank}` : "", item.pct ? `${item.pct}%` : ""].filter(Boolean).join(" · "))}</span>
+      <span>${escapeHtml([item.role, item.pct ? `${item.pct}%` : ""].filter(Boolean).join(" · "))}</span>
       <p>盘前条件：竞价不宜高开过多，只看确认。</p>
       <p>09:45 确认：板块仍在前 10，中军不杀。</p>
       <p>10:30 确认：换手后仍站 VWAP。</p>
@@ -1416,7 +1629,17 @@ function renderPreopenSectorCard(item) {
   `;
 }
 
-function preopenPortfolioPlan(latest) {
+function preopenPortfolioPlan(latest, plan = null) {
+  const planRows = plan?.observation_focus?.holdings || [];
+  if (planRows.length) {
+    return planRows.map((row) => ({
+      stock: row.stock,
+      priority: row.identity?.includes("风险") ? "P0" : row.identity?.includes("温度计") ? "P1" : "P2",
+      reason: row.action || row.identity || "盘前持仓观察",
+      trigger_price: "",
+      invalid_condition: row.downgrade || "",
+    }));
+  }
   const priority = (latest?.decision?.portfolio_priority || []).slice(0, 6);
   if (priority.length) return priority;
   return mergedHoldings().slice(0, 6).map((row) => ({
@@ -1428,9 +1651,9 @@ function preopenPortfolioPlan(latest) {
   }));
 }
 
-function renderPreopenDoNotDo(fallbackUsed) {
-  const items = [
-    "不要因为竞价排名第一就追高。",
+function renderPreopenDoNotDo(fallbackUsed, plan = null) {
+  const items = plan?.do_not_do?.length ? [...plan.do_not_do] : [
+    "不要因为竞价涨幅靠前就追高。",
     "不要补弱于板块的亏损仓。",
     "不要把反抽失败当成新主线。",
     "不要因为昨天卖飞，就在今天开盘情绪化追回。",
@@ -1663,7 +1886,6 @@ function renderStrategyCandidateCard(row) {
   ].filter(Boolean);
   const board = [
     row["匹配板块"] || "",
-    row["板块排名"] ? `排名 ${row["板块排名"]}` : "",
     row["板块涨幅%"] ? `${row["板块涨幅%"]}%` : "",
   ].filter(Boolean);
   return `
@@ -1852,11 +2074,11 @@ function renderWatchItem(item) {
 
 function renderTable(table) {
   const columns = table.columns || [];
-  const rows = table.rows || [];
+  const rows = visibleRowsForTable(table);
   if (!columns.length) {
     return `<div class="table-card"><h3>${escapeHtml(tableTitle(table))}</h3><p class="empty">表格为空。</p></div>`;
   }
-  const visibleColumns = columns.slice(0, 16);
+  const visibleColumns = visibleColumnsForTable(table, columns);
   const head = visibleColumns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
   const body = rows
     .map((row) => `<tr>${visibleColumns.map((column) => `<td>${escapeHtml(row[column])}</td>`).join("")}</tr>`)
@@ -1872,6 +2094,23 @@ function renderTable(table) {
       </div>
     </div>
   `;
+}
+
+function visibleColumnsForTable(table, columns) {
+  if (table.name === "market_sector_scan.csv") {
+    const preferred = ["时间", "板块", "板块来源", "板块类型", "涨幅", "涨家率", "涨停数", "状态(延续/分歧/切换)", "领涨股"];
+    const selected = preferred.filter((column) => columns.includes(column));
+    return selected.length ? selected : columns.filter((column) => !column.includes("排名")).slice(0, 12);
+  }
+  return columns.slice(0, 16);
+}
+
+function visibleRowsForTable(table) {
+  const rows = table.rows || [];
+  if (table.name === "market_sector_scan.csv") {
+    return rows.slice(0, 8);
+  }
+  return rows;
 }
 
 function localHoldings() {

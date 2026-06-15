@@ -684,6 +684,26 @@ input {
   gap: 10px;
 }
 
+.priority-defs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.priority-defs span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #53636b;
+  font-size: 12px;
+  padding: 5px 9px;
+}
+
+.priority-defs b {
+  color: #172126;
+}
+
 .priority-card {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -780,6 +800,41 @@ input {
   color: var(--muted);
   font-size: 12px;
   font-style: normal;
+}
+
+.collapsed-stock-list {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 10px 12px 14px;
+}
+
+.collapsed-stock-list summary {
+  cursor: pointer;
+  color: #172126;
+  font-weight: 700;
+  list-style: none;
+}
+
+.collapsed-stock-list summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsed-stock-list summary::before {
+  content: "+";
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #eef3f4;
+  color: var(--accent);
+}
+
+.collapsed-stock-list[open] summary::before {
+  content: "-";
 }
 
 .watchlist-group {
