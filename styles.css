@@ -855,35 +855,81 @@ input {
   color: #9b4d35;
 }
 
-.pullback-groups {
+.sector-analysis-groups {
   display: grid;
   gap: 16px;
-  margin-top: 14px;
 }
 
-.pullback-group {
+.sector-analysis-group {
   display: grid;
   gap: 10px;
 }
 
-.pullback-group-title {
+.sector-analysis-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.pullback-group-title h4 {
+.sector-analysis-title h4 {
   margin: 0;
+  font-size: 16px;
 }
 
-.pullback-group-title span {
+.sector-analysis-title span {
   color: var(--muted);
   font-size: 13px;
 }
 
-.pullback-card .pill-row {
-  margin-top: 10px;
+.sector-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sector-analysis-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfcfd;
+  padding: 12px;
+}
+
+.sector-analysis-group.strong .sector-analysis-card {
+  border-color: #b9d9d3;
+  background: #f4fbf9;
+}
+
+.sector-analysis-group.weak .sector-analysis-card {
+  border-color: #ead4b5;
+  background: #fffaf2;
+}
+
+.sector-analysis-card p {
+  margin-top: 6px;
+  color: #465861;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sector-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.sector-card-head strong {
+  color: #172126;
+}
+
+.sector-card-head span {
+  flex: none;
+  border-radius: 999px;
+  background: #eef3f4;
+  color: #53636b;
+  padding: 3px 8px;
+  font-size: 12px;
 }
 
 .pill-row.compact {
@@ -1684,6 +1730,7 @@ footer {
   .priority-list,
   .stock-signal-grid,
   .sector-grid,
+  .sector-analysis-grid,
   .portfolio-form,
   .markdown-layout {
     grid-template-columns: 1fr;

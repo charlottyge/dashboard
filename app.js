@@ -5,7 +5,7 @@ const tableLabels = {
   market_overview: "市场概览",
   market_sector_scan: "板块扫描",
   hot_board_front_core: "强板块中军 / 前排",
-  pullback_setups: "热门股回踩观察",
+  pullback_setups: "当日回踩观察",
   market_temperature: "竞价温度",
   sector_strength: "竞价板块强度",
   yesterday_strong_lines: "昨日强线竞价",
@@ -195,10 +195,6 @@ function renderActionBrief(checkpoint) {
     <section class="brief">
       <h3>市场板块</h3>
       ${renderMarketSectorsSection(checkpoint, decision)}
-    </section>
-    <section class="brief">
-      <h3>热门股回踩观察</h3>
-      ${renderPullbackWorkbench(checkpoint)}
     </section>
     <section class="brief">
       <h3>Watchlist</h3>
@@ -479,77 +475,138 @@ function renderPortfolioWorkbench(checkpoint) {
   `;
 }
 
-function renderMarketSectorsSection(checkpoint, decision) {
+function renderMarketSectorsSection(checkpoint) {
+  const groups = sectorDisplayGroups(checkpoint);
   return `
-    <div class="section-note">${escapeHtml(sectorChangeText(checkpoint))}</div>
-    <div class="mainline-groups compact">
-      ${renderMainlineGroup("仍在走强", (decision.confirmed_mainlines || []).slice(0, 4), "strong")}
-      ${renderMainlineGroup("走弱 / 不再主攻", (decision.weakening_mainlines || []).slice(0, 4), "weak")}
-      ${renderMainlineGroup("新改善方向", (decision.new_improving_lines || []).slice(0, 4), "improving")}
+    <div class="sector-analysis-groups">
+      ${renderSectorAnalysisGroup("仍在走强", groups.strong, "strong")}
+      ${renderSectorAnalysisGroup("走弱", groups.weak, "weak")}
+      ${renderSectorAnalysisGroup("昨日热门板块", groups.yesterday, "yesterday")}
     </div>
   `;
 }
 
-function renderPullbackWorkbench(checkpoint) {
-  const rows = tableRows(checkpoint, "pullback_setups.csv");
-  if (!rows.length) {
-    return '<p class="empty">暂无热门股回踩观察。只把曾经强过、板块还没死、回踩关键线附近的个股放进这里。</p>';
-  }
-  const groups = [
-    ["已确认", rows.filter((row) => row["分类"] === "回踩确认")],
-    ["待确认", rows.filter((row) => row["分类"] === "回踩待确认" || row["分类"] === "只观察")],
-    ["失败/剔除", rows.filter((row) => row["分类"] === "失败/剔除")],
-  ].filter(([, items]) => items.length);
-  return `
-    <div class="section-note">回踩确认 ≠ 立即买入；它只表示强股从“不可追高”变成“有观察价值”。板块弱、跌破均线、只因跌多反弹的，不算机会。</div>
-    <div class="pullback-groups">
-      ${groups.map(([title, items]) => renderPullbackGroup(title, items)).join("")}
-    </div>
-  `;
+function sectorDisplayGroups(checkpoint) {
+  const currentRows = sectorRowsForCheckpoint(checkpoint);
+  const previous = previousCheckpoint(checkpoint);
+  const previousRows = previous ? sectorRowsForCheckpoint(previous) : [];
+  const previousMap = sectorRowMap(previousRows);
+  const currentMap = sectorRowMap(currentRows);
+  const previousTopNames = new Set(previousRows.slice(0, 10).map(sectorName).filter(Boolean));
+  const strong = currentRows
+    .slice(0, 10)
+    .filter((row) => num(row["涨幅"] || row["板块涨幅"]) > 0)
+    .map((row) => buildSectorDisplayItem(checkpoint, row, previousMap.get(sectorName(row)), previousTopNames.has(sectorName(row)) ? "延续" : "新增"))
+    .slice(0, 8);
+  const weak = previousRows
+    .slice(0, 10)
+    .map((prevRow) => {
+      const name = sectorName(prevRow);
+      const current = currentMap.get(name);
+      const currentRank = currentRows.findIndex((row) => sectorName(row) === name) + 1;
+      const currentPct = current ? num(current["涨幅"] || current["板块涨幅"]) : -999;
+      const prevPct = num(prevRow["涨幅"] || prevRow["板块涨幅"]);
+      const weakened = !current || currentRank > 12 || currentPct < prevPct - 0.5;
+      return weakened ? buildSectorDisplayItem(checkpoint, current || prevRow, prevRow, current ? "回落" : "掉出前排") : null;
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+  const yesterday = yesterdayHotSectorRows()
+    .slice(0, 8)
+    .map((row) => buildSectorDisplayItem(checkpoint, currentMap.get(sectorName(row)) || row, row, currentMap.has(sectorName(row)) ? "今日仍在表内" : "今日未进前排"));
+  return { strong, weak, yesterday };
 }
 
-function renderPullbackGroup(title, rows) {
+function sectorRowMap(rows) {
+  return new Map(rows.map((row) => [sectorName(row), row]).filter(([name]) => name));
+}
+
+function sectorName(row) {
+  return row?.["板块"] || row?.name || "";
+}
+
+function buildSectorDisplayItem(checkpoint, row, previousRow, tag) {
+  const name = sectorName(row);
+  const pct = num(row["涨幅"] || row["板块涨幅"]);
+  const previousPct = previousRow ? num(previousRow["涨幅"] || previousRow["板块涨幅"]) : null;
+  const hot = hotBoardRowForSector(checkpoint, name);
+  const prevHot = previousCheckpoint(checkpoint) ? hotBoardRowForSector(previousCheckpoint(checkpoint), name) : {};
+  return {
+    name,
+    tag,
+    pct,
+    pctChange: previousPct === null ? "" : pct - previousPct,
+    volume: sectorVolumeText(row),
+    core: sectorStockText(hot, prevHot, "中军"),
+    front: [1, 2, 3].map((index) => sectorStockText(hot, prevHot, `前排${index}`)).filter(Boolean).slice(0, 2),
+  };
+}
+
+function sectorVolumeText(row) {
+  const amount = row["成交额"] || row["成交量"] || row["成交额预估"] || "";
+  if (amount !== "") return formatAmount(amount);
+  const rank = row["成交额排名"] || row["成交量排名"] || "";
+  return rank ? `成交额排名 #${rank}` : "-";
+}
+
+function hotBoardRowForSector(checkpoint, sector) {
+  if (!checkpoint || !sector) return {};
+  return tableRows(checkpoint, "hot_board_front_core.csv").find((row) => row["板块"] === sector) || {};
+}
+
+function sectorStockText(row, prevRow, prefix) {
+  const stock = row?.[`${prefix}股票`] || "";
+  const pct = row?.[`${prefix}涨幅`] || "";
+  if (!stock && pct === "") return "";
+  const prevPct = prevRow && prevRow[`${prefix}股票`] === stock ? prevRow[`${prefix}涨幅`] : "";
+  const change = pct !== "" && prevPct !== "" ? ` ${formatPctChange(num(pct) - num(prevPct))}` : prevPct === "" && stock ? " 新增" : "";
+  return `${stock || prefix}${pct !== "" ? ` ${pct}%` : ""}${change}`;
+}
+
+function yesterdayHotSectorRows() {
+  const days = siteData?.timeline_days || [];
+  const currentDate = activeDay?.date || "";
+  const previousDay = days.find((day) => day.date && day.date < currentDate);
+  const checkpoints = previousDay?.checkpoints || [];
+  const latest = [...checkpoints].reverse().find((item) => !isStrategyCheckpoint(item));
+  return latest ? sectorRowsForCheckpoint(latest) : [];
+}
+
+function renderSectorAnalysisGroup(title, items, mode) {
   return `
-    <section class="pullback-group">
-      <div class="pullback-group-title">
+    <section class="sector-analysis-group ${escapeHtml(mode)}">
+      <div class="sector-analysis-title">
         <h4>${escapeHtml(title)}</h4>
-        <span>${escapeHtml(rows.length)} 条</span>
+        <span>${escapeHtml(items.length)} 个</span>
       </div>
-      <div class="stock-signal-grid">
-        ${rows.slice(0, title === "失败/剔除" ? 4 : 8).map(renderPullbackCard).join("")}
-      </div>
+      ${items.length ? `<div class="sector-analysis-grid">${items.map(renderSectorAnalysisCard).join("")}</div>` : '<p class="empty">暂无。</p>'}
     </section>
   `;
 }
 
-function renderPullbackCard(row) {
-  const stock = row["股票"] || "-";
-  const metrics = [
-    row["当前涨幅"] !== "" ? `涨幅 ${row["当前涨幅"]}%` : "",
-    row["板块排名"] !== "" ? `板块 #${row["板块排名"]}` : "",
-    row["分数"] !== "" ? `分数 ${row["分数"]}` : "",
-  ].filter(Boolean);
-  const lines = [
-    row["MA5"] ? `MA5 ${row["MA5"]}` : "",
-    row["MA10"] ? `MA10 ${row["MA10"]}` : "",
-    row["MA20"] ? `MA20 ${row["MA20"]}` : "",
-    row["VWAP"] ? `VWAP ${row["VWAP"]}` : "",
-    row["上午低点"] ? `低点 ${row["上午低点"]}` : "",
-  ].filter(Boolean);
+function renderSectorAnalysisCard(item) {
   return `
-    <article class="stock-signal-card pullback-card ${row["分类"] === "回踩确认" ? "urgent" : ""}">
-      <strong>${escapeHtml(stock)}</strong>
-      <span>${escapeHtml([row["板块"], row["回踩类型"]].filter(Boolean).join(" · "))}</span>
-      <p>${escapeHtml(row["走势自然语言"] || row["状态"] || "")}</p>
-      <div class="pill-row compact">
-        ${metrics.map((item) => `<span class="pill">${escapeHtml(item)}</span>`).join("")}
+    <article class="sector-analysis-card">
+      <div class="sector-card-head">
+        <strong>${escapeHtml(item.name || "-")}</strong>
+        <span>${escapeHtml(item.tag || "")}</span>
       </div>
-      <em>状态：${escapeHtml(row["状态"] || row["分类"] || "-")} · ${escapeHtml(row["VWAP状态"] || "")}</em>
-      <em>关键线：${escapeHtml(lines.join(" / ") || "-")}</em>
-      <em>下一步：${escapeHtml(row["下一步"] || "-")}</em>
-      ${row["风险"] ? `<em class="risk-text">风险：${escapeHtml(row["风险"])}</em>` : ""}
+      <p>板块涨幅：${escapeHtml(formatPct(item.pct))}${item.pctChange !== "" ? `（较上一 ${escapeHtml(formatPctChange(item.pctChange))}）` : ""}</p>
+      <p>成交量：${escapeHtml(item.volume)}</p>
+      <p>中军：${escapeHtml(item.core || "-")}</p>
+      <p>前排：${escapeHtml(item.front.length ? item.front.join("；") : "-")}</p>
     </article>
   `;
+}
+
+function formatPct(value) {
+  if (!Number.isFinite(Number(value))) return "-";
+  return `${Number(value).toFixed(2)}%`;
+}
+
+function formatPctChange(value) {
+  if (!Number.isFinite(Number(value))) return "-";
+  return `${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(2)}pct`;
 }
 
 function sectorTeachingText(name) {
