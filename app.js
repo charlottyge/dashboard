@@ -512,9 +512,23 @@ function sectorDisplayGroups(checkpoint) {
     })
     .filter(Boolean)
     .slice(0, 6);
-  const yesterday = yesterdayHotSectorRows()
+  const yesterdayContext = yesterdayHotSectorContext();
+  const yesterday = yesterdayContext.rows
     .slice(0, 8)
-    .map((row) => buildSectorDisplayItem(checkpoint, currentMap.get(sectorName(row)) || row, row, currentMap.has(sectorName(row)) ? "今日仍在表内" : "今日未进前排"));
+    .map((row) => {
+      const name = sectorName(row);
+      const current = currentMap.get(name);
+      return buildSectorDisplayItem(
+        checkpoint,
+        current || row,
+        current ? row : null,
+        current ? "今日仍在表内" : "今日未进前排",
+        {
+          hotCheckpoint: current ? checkpoint : yesterdayContext.checkpoint,
+          prevHotCheckpoint: current ? yesterdayContext.checkpoint : null,
+        },
+      );
+    });
   return { strong, weak, yesterday };
 }
 
@@ -526,12 +540,14 @@ function sectorName(row) {
   return row?.["板块"] || row?.name || "";
 }
 
-function buildSectorDisplayItem(checkpoint, row, previousRow, tag) {
+function buildSectorDisplayItem(checkpoint, row, previousRow, tag, options = {}) {
   const name = sectorName(row);
   const pct = num(row["涨幅"] || row["板块涨幅"]);
   const previousPct = previousRow ? num(previousRow["涨幅"] || previousRow["板块涨幅"]) : null;
-  const hot = hotBoardRowForSector(checkpoint, name);
-  const prevHot = previousCheckpoint(checkpoint) ? hotBoardRowForSector(previousCheckpoint(checkpoint), name) : {};
+  const hotCheckpoint = options.hotCheckpoint || checkpoint;
+  const prevHotCheckpoint = options.prevHotCheckpoint === undefined ? previousCheckpoint(checkpoint) : options.prevHotCheckpoint;
+  const hot = hotBoardRowForSector(hotCheckpoint, name);
+  const prevHot = prevHotCheckpoint ? hotBoardRowForSector(prevHotCheckpoint, name) : {};
   return {
     name,
     tag,
@@ -564,13 +580,16 @@ function sectorStockText(row, prevRow, prefix) {
   return `${stock || prefix}${pct !== "" ? ` ${pct}%` : ""}${change}`;
 }
 
-function yesterdayHotSectorRows() {
+function yesterdayHotSectorContext() {
   const days = siteData?.timeline_days || [];
   const currentDate = activeDay?.date || "";
   const previousDay = days.find((day) => day.date && day.date < currentDate);
   const checkpoints = previousDay?.checkpoints || [];
   const latest = [...checkpoints].reverse().find((item) => !isStrategyCheckpoint(item));
-  return latest ? sectorRowsForCheckpoint(latest) : [];
+  return {
+    checkpoint: latest || null,
+    rows: latest ? sectorRowsForCheckpoint(latest) : [],
+  };
 }
 
 function renderSectorAnalysisGroup(title, items, mode) {
