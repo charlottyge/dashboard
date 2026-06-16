@@ -477,59 +477,26 @@ function renderPortfolioWorkbench(checkpoint) {
 }
 
 function renderMarketSectorsSection(checkpoint) {
-  const groups = sectorDisplayGroups(checkpoint);
+  const items = topSectorDisplayItems(checkpoint);
   return `
-    <div class="sector-analysis-groups">
-      ${renderSectorAnalysisGroup("仍在走强", groups.strong, "strong")}
-      ${renderSectorAnalysisGroup("走弱", groups.weak, "weak")}
-      ${renderSectorAnalysisGroup("昨日热门板块", groups.yesterday, "yesterday")}
-    </div>
+    <section class="sector-analysis-group top-live">
+      <div class="sector-analysis-title">
+        <h4>实时最强 Top 10</h4>
+        <span>${escapeHtml(items.length)} 个</span>
+      </div>
+      ${items.length ? `<div class="sector-analysis-grid">${items.map(renderSectorAnalysisCard).join("")}</div>` : '<p class="empty">暂无板块数据。</p>'}
+    </section>
   `;
 }
 
-function sectorDisplayGroups(checkpoint) {
+function topSectorDisplayItems(checkpoint) {
   const currentRows = sectorRowsForCheckpoint(checkpoint);
   const previous = previousCheckpoint(checkpoint);
   const previousRows = previous ? sectorRowsForCheckpoint(previous) : [];
   const previousMap = sectorRowMap(previousRows);
-  const currentMap = sectorRowMap(currentRows);
-  const previousTopNames = new Set(previousRows.slice(0, 10).map(sectorName).filter(Boolean));
-  const strong = currentRows
+  return currentRows
     .slice(0, 10)
-    .filter((row) => num(row["涨幅"] || row["板块涨幅"]) > 0)
-    .map((row) => buildSectorDisplayItem(checkpoint, row, previousMap.get(sectorName(row)), previousTopNames.has(sectorName(row)) ? "延续" : "新增"))
-    .slice(0, 8);
-  const weak = previousRows
-    .slice(0, 10)
-    .map((prevRow) => {
-      const name = sectorName(prevRow);
-      const current = currentMap.get(name);
-      const currentRank = currentRows.findIndex((row) => sectorName(row) === name) + 1;
-      const currentPct = current ? num(current["涨幅"] || current["板块涨幅"]) : -999;
-      const prevPct = num(prevRow["涨幅"] || prevRow["板块涨幅"]);
-      const weakened = !current || currentRank > 12 || currentPct < prevPct - 0.5;
-      return weakened ? buildSectorDisplayItem(checkpoint, current || prevRow, prevRow, current ? "回落" : "掉出前排") : null;
-    })
-    .filter(Boolean)
-    .slice(0, 6);
-  const yesterdayContext = yesterdayHotSectorContext();
-  const yesterday = yesterdayContext.rows
-    .slice(0, 8)
-    .map((row) => {
-      const name = sectorName(row);
-      const current = currentMap.get(name);
-      return buildSectorDisplayItem(
-        checkpoint,
-        current || row,
-        current ? row : null,
-        current ? "今日仍在表内" : "今日未进前排",
-        {
-          hotCheckpoint: current ? checkpoint : yesterdayContext.checkpoint,
-          prevHotCheckpoint: current ? yesterdayContext.checkpoint : null,
-        },
-      );
-    });
-  return { strong, weak, yesterday };
+    .map((row, index) => buildSectorDisplayItem(checkpoint, row, previousMap.get(sectorName(row)), index + 1));
 }
 
 function sectorRowMap(rows) {
@@ -540,23 +507,30 @@ function sectorName(row) {
   return row?.["板块"] || row?.name || "";
 }
 
-function buildSectorDisplayItem(checkpoint, row, previousRow, tag, options = {}) {
+function buildSectorDisplayItem(checkpoint, row, previousRow, currentRank) {
   const name = sectorName(row);
   const pct = num(row["涨幅"] || row["板块涨幅"]);
   const previousPct = previousRow ? num(previousRow["涨幅"] || previousRow["板块涨幅"]) : null;
-  const hotCheckpoint = options.hotCheckpoint || checkpoint;
-  const prevHotCheckpoint = options.prevHotCheckpoint === undefined ? previousCheckpoint(checkpoint) : options.prevHotCheckpoint;
-  const hot = hotBoardRowForSector(hotCheckpoint, name);
-  const prevHot = prevHotCheckpoint ? hotBoardRowForSector(prevHotCheckpoint, name) : {};
+  const previousRank = previousRow ? sectorRank(previousRow) : null;
+  const hot = hotBoardRowForSector(checkpoint, name);
+  const previous = previousCheckpoint(checkpoint);
+  const prevHot = previous ? hotBoardRowForSector(previous, name) : {};
   return {
     name,
-    tag,
+    rank: sectorRank(row) || currentRank,
+    previousRank,
+    rankChange: previousRank === null ? null : previousRank - (sectorRank(row) || currentRank),
     pct,
     pctChange: previousPct === null ? "" : pct - previousPct,
     volume: sectorVolumeText(row),
     core: sectorStockText(hot, prevHot, "中军"),
     front: [1, 2, 3].map((index) => sectorStockText(hot, prevHot, `前排${index}`)).filter(Boolean).slice(0, 2),
   };
+}
+
+function sectorRank(row) {
+  const rank = num(row?.["涨幅排名"] || row?.["板块排名"] || row?.rank);
+  return rank || null;
 }
 
 function sectorVolumeText(row) {
@@ -580,38 +554,16 @@ function sectorStockText(row, prevRow, prefix) {
   return `${stock || prefix}${pct !== "" ? ` ${pct}%` : ""}${change}`;
 }
 
-function yesterdayHotSectorContext() {
-  const days = siteData?.timeline_days || [];
-  const currentDate = activeDay?.date || "";
-  const previousDay = days.find((day) => day.date && day.date < currentDate);
-  const checkpoints = previousDay?.checkpoints || [];
-  const latest = [...checkpoints].reverse().find((item) => !isStrategyCheckpoint(item));
-  return {
-    checkpoint: latest || null,
-    rows: latest ? sectorRowsForCheckpoint(latest) : [],
-  };
-}
-
-function renderSectorAnalysisGroup(title, items, mode) {
-  return `
-    <section class="sector-analysis-group ${escapeHtml(mode)}">
-      <div class="sector-analysis-title">
-        <h4>${escapeHtml(title)}</h4>
-        <span>${escapeHtml(items.length)} 个</span>
-      </div>
-      ${items.length ? `<div class="sector-analysis-grid">${items.map(renderSectorAnalysisCard).join("")}</div>` : '<p class="empty">暂无。</p>'}
-    </section>
-  `;
-}
-
 function renderSectorAnalysisCard(item) {
   return `
     <article class="sector-analysis-card">
       <div class="sector-card-head">
         <strong>${escapeHtml(item.name || "-")}</strong>
-        <span>${escapeHtml(item.tag || "")}</span>
+        <span>#${escapeHtml(item.rank || "-")}</span>
       </div>
-      <p>板块涨幅：${escapeHtml(formatPct(item.pct))}${item.pctChange !== "" ? `（较上一 ${escapeHtml(formatPctChange(item.pctChange))}）` : ""}</p>
+      <p>板块涨幅：${escapeHtml(formatPct(item.pct))}</p>
+      <p>排名变化：${escapeHtml(formatRankChange(item.rankChange, item.previousRank, item.rank))}</p>
+      <p>涨跌幅变化：${item.pctChange !== "" ? escapeHtml(formatPctChange(item.pctChange)) : "无上一 checkpoint"}</p>
       <p>成交量：${escapeHtml(item.volume)}</p>
       <p>中军：${escapeHtml(item.core || "-")}</p>
       <p>前排：${escapeHtml(item.front.length ? item.front.join("；") : "-")}</p>
@@ -627,6 +579,13 @@ function formatPct(value) {
 function formatPctChange(value) {
   if (!Number.isFinite(Number(value))) return "-";
   return `${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(2)}pct`;
+}
+
+function formatRankChange(value, previousRank, currentRank) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "无上一 checkpoint";
+  const prefix = previousRank && currentRank ? `#${previousRank} → #${currentRank}，` : "";
+  if (Number(value) === 0) return `${prefix}持平`;
+  return `${prefix}${Number(value) > 0 ? "前进" : "后退"} ${Math.abs(Number(value))} 名`;
 }
 
 function sectorTeachingText(name) {

@@ -888,11 +888,6 @@ input {
   margin: 0;
 }
 
-.sector-analysis-groups {
-  display: grid;
-  gap: 16px;
-}
-
 .sector-analysis-group {
   display: grid;
   gap: 10px;
@@ -926,16 +921,6 @@ input {
   border-radius: var(--radius);
   background: #fbfcfd;
   padding: 12px;
-}
-
-.sector-analysis-group.strong .sector-analysis-card {
-  border-color: #b9d9d3;
-  background: #f4fbf9;
-}
-
-.sector-analysis-group.weak .sector-analysis-card {
-  border-color: #ead4b5;
-  background: #fffaf2;
 }
 
 .sector-analysis-card p {
