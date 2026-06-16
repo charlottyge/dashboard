@@ -210,7 +210,7 @@ def normalize_intraday_time(value: str, fallback: str = CHECKPOINT) -> str:
         raw = f"{raw[:2]}:{raw[2:]}"
     if raw.isdigit() and len(raw) in {3, 4}:
         raw = f"{int(raw[:-2]):02d}:{raw[-2:]}"
-    if len(raw) != 5 or raw[2] != ":":
+    if ":" not in raw:
         raise SystemExit(f"invalid intraday time: {value}")
     hour, minute = raw.split(":", 1)
     if not (hour.isdigit() and minute.isdigit()):
