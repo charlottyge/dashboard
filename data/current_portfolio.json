@@ -1,8 +1,18 @@
 {
   "source": "/Users/char/Library/Mobile Documents/com~apple~CloudDocs/Obsidian Vault/investment/portfolio.md",
-  "modified": "2026-06-15T22:07:44",
+  "modified": "2026-06-16T18:42:40",
   "latest_date": "2026-06-15",
   "base_holdings": [
+    {
+      "code": "002709",
+      "date": "",
+      "name": "天赐材料",
+      "shares_total": "800",
+      "avg_cost": "52.254",
+      "current_snapshot": "52.28",
+      "shares_added_recently": "",
+      "last_add_price": ""
+    },
     {
       "code": "003043",
       "date": "",
