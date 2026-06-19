@@ -41,6 +41,7 @@ let siteData = null;
 let activeDay = null;
 let activeCheckpointId = null;
 let activeView = "radar";
+let activeWeeklyPath = null;
 
 function value(input, fallback = "-") {
   return input === null || input === undefined || input === "" ? fallback : input;
@@ -2608,9 +2609,44 @@ function renderWeekly(weekly) {
     preview.innerHTML = '<p class="empty">暂无周报预览。</p>';
     return;
   }
+  link.style.display = "inline-flex";
   meta.textContent = `${weekly.name} · ${weekly.modified}`;
   link.href = weekly.published_path;
+  link.download = weekly.name || "";
   preview.innerHTML = markdownPreview(weekly.text || "");
+}
+
+function renderWeeklyReports(reports) {
+  const list = byId("weekly-list");
+  if (!list) return;
+  const weeklyReports = reports || [];
+  if (!weeklyReports.length) {
+    activeWeeklyPath = null;
+    list.innerHTML = '<p class="empty">暂无周度 Markdown。</p>';
+    renderWeekly(null);
+    return;
+  }
+  if (!activeWeeklyPath || !weeklyReports.some((item) => item.published_path === activeWeeklyPath)) {
+    activeWeeklyPath = weeklyReports[0].published_path;
+  }
+  list.innerHTML = weeklyReports
+    .map(
+      (item) => `
+        <button class="markdown-item ${item.published_path === activeWeeklyPath ? "active" : ""}" data-weekly-path="${escapeHtml(item.published_path)}">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${escapeHtml(item.modified)}</span>
+          <span>${escapeHtml(item.relative_path || "")}</span>
+        </button>
+      `,
+    )
+    .join("");
+  list.querySelectorAll("[data-weekly-path]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeWeeklyPath = button.dataset.weeklyPath;
+      renderWeeklyReports(weeklyReports);
+    });
+  });
+  renderWeekly(weeklyReports.find((item) => item.published_path === activeWeeklyPath) || weeklyReports[0]);
 }
 
 function markdownPreview(text) {
@@ -2665,7 +2701,7 @@ async function main() {
   setupViewTabs();
   setupPortfolio();
   setupMarkdown();
-  renderWeekly(siteData.latest_weekly);
+  renderWeeklyReports(siteData.weekly_reports || (siteData.latest_weekly ? [siteData.latest_weekly] : []));
   renderFiles(siteData.recent_exports);
 }
 

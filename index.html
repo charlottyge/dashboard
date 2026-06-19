@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>A 股盘中分析雷达</title>
-    <link rel="stylesheet" href="./styles.css?v=20260616-sector-top10" />
+    <link rel="stylesheet" href="./styles.css?v=20260619-weekly-list" />
   </head>
   <body>
     <aside class="sidebar">
@@ -89,7 +89,10 @@
           </div>
           <a id="weekly-link" class="button" href="#" download>下载原始周报</a>
         </div>
-        <article id="weekly-preview" class="report-preview"></article>
+        <div class="markdown-layout">
+          <div id="weekly-list" class="markdown-list"></div>
+          <article id="weekly-preview" class="report-preview"></article>
+        </div>
       </section>
 
       <section class="section app-view" data-view-panel="files">
@@ -103,6 +106,6 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260616-sector-top10"></script>
+    <script src="./app.js?v=20260619-weekly-list"></script>
   </body>
 </html>
