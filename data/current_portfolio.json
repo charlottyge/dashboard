@@ -1,6 +1,6 @@
 {
   "source": "/Users/char/Library/Mobile Documents/com~apple~CloudDocs/Obsidian Vault/investment/portfolio.md",
-  "modified": "2026-06-17T21:59:37",
+  "modified": "2026-06-19T10:16:32",
   "latest_date": "2026-06-15",
   "base_holdings": [
     {
@@ -40,6 +40,16 @@
       "shares_total": "200",
       "avg_cost": "58.386",
       "current_snapshot": "45.98",
+      "shares_added_recently": "",
+      "last_add_price": ""
+    },
+    {
+      "code": "300496",
+      "date": "",
+      "name": "中科创达",
+      "shares_total": "500",
+      "avg_cost": "65.908",
+      "current_snapshot": "65.86",
       "shares_added_recently": "",
       "last_add_price": ""
     },
