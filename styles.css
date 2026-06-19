@@ -1663,6 +1663,22 @@ td {
   color: #27343c;
 }
 
+.report-preview strong {
+  font-weight: 700;
+}
+
+.report-preview em {
+  font-style: italic;
+}
+
+.report-preview code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  background: #f3f6f8;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
 .report-preview pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1670,6 +1686,61 @@ td {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px;
+}
+
+.report-preview pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.report-preview ul {
+  margin: 8px 0 14px 20px;
+  padding: 0;
+}
+
+.report-preview blockquote,
+.report-preview .md-callout {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-left: 4px solid #1d857a;
+  background: #eef8f7;
+  border-radius: 0 8px 8px 0;
+}
+
+.report-preview blockquote p,
+.report-preview .md-callout p {
+  margin: 0;
+}
+
+.report-preview .md-callout p + p,
+.report-preview blockquote p + p {
+  margin-top: 8px;
+}
+
+.report-table-wrap {
+  overflow: auto;
+  margin: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.report-table {
+  min-width: 720px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.report-table th,
+.report-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #edf1f3;
+  vertical-align: top;
+}
+
+.report-table th {
+  background: #f8fafb;
+  color: #42515a;
+  font-weight: 700;
 }
 
 .file-list {

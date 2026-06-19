@@ -2650,29 +2650,157 @@ function renderWeeklyReports(reports) {
 }
 
 function markdownPreview(text) {
-  const lines = text.split("\n");
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n").slice(0, 500);
   const html = [];
-  let inTable = false;
+  let paragraph = [];
+  let listItems = [];
+  let blockquoteLines = [];
+  let codeLines = [];
+  let codeLang = "";
   let tableRows = [];
-  function flushTable() {
-    if (!inTable) return;
-    html.push(`<pre>${escapeHtml(tableRows.filter((line) => !/^\|\s*-/.test(line)).slice(0, 18).join("\n"))}</pre>`);
-    inTable = false;
+  let inCode = false;
+
+  const inlineMarkdown = (input) => {
+    let output = escapeHtml(input);
+    output = output.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    output = output.replace(/\*(.+?)\*/g, "<em>$1</em>");
+    output = output.replace(/`([^`]+)`/g, "<code>$1</code>");
+    output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+    return output;
+  };
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    html.push(`<p>${inlineMarkdown(paragraph.join(" "))}</p>`);
+    paragraph = [];
+  };
+
+  const flushList = () => {
+    if (!listItems.length) return;
+    html.push(`<ul>${listItems.map((item) => `<li>${inlineMarkdown(item)}</li>`).join("")}</ul>`);
+    listItems = [];
+  };
+
+  const flushBlockquote = () => {
+    if (!blockquoteLines.length) return;
+    const content = blockquoteLines.join("\n").trim();
+    const isCallout = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.test(content);
+    if (isCallout) {
+      const normalized = content.replace(/^\[!([A-Z]+)\]\s*/i, "");
+      html.push(`<aside class="md-callout">${normalized.split("\n").map((line) => `<p>${inlineMarkdown(line)}</p>`).join("")}</aside>`);
+    } else {
+      html.push(`<blockquote>${content.split("\n").map((line) => `<p>${inlineMarkdown(line)}</p>`).join("")}</blockquote>`);
+    }
+    blockquoteLines = [];
+  };
+
+  const parseTableCells = (line) =>
+    line
+      .trim()
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((cell) => cell.trim());
+
+  const flushTable = () => {
+    if (!tableRows.length) return;
+    const rows = tableRows.map(parseTableCells);
+    const separatorIndex = rows.findIndex((row) => row.every((cell) => /^:?-{3,}:?$/.test(cell)));
+    const header = separatorIndex >= 0 ? rows[0] : null;
+    const body = separatorIndex >= 0 ? rows.slice(separatorIndex + 1) : rows;
+    if (header) {
+      html.push(`
+        <div class="report-table-wrap">
+          <table class="report-table">
+            <thead><tr>${header.map((cell) => `<th>${inlineMarkdown(cell)}</th>`).join("")}</tr></thead>
+            <tbody>${body.map((row) => `<tr>${row.map((cell) => `<td>${inlineMarkdown(cell)}</td>`).join("")}</tr>`).join("")}</tbody>
+          </table>
+        </div>
+      `);
+    } else {
+      html.push(`<pre>${escapeHtml(tableRows.join("\n"))}</pre>`);
+    }
     tableRows = [];
-  }
-  for (const line of lines.slice(0, 220)) {
-    if (line.startsWith("|")) {
-      inTable = true;
+  };
+
+  const flushCode = () => {
+    if (!codeLines.length && !inCode) return;
+    html.push(`<pre><code class="language-${escapeHtml(codeLang)}">${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+    codeLines = [];
+    codeLang = "";
+  };
+
+  for (const line of lines) {
+    if (inCode) {
+      if (line.startsWith("```")) {
+        inCode = false;
+        flushCode();
+      } else {
+        codeLines.push(line);
+      }
+      continue;
+    }
+    if (line.startsWith("```")) {
+      flushParagraph();
+      flushList();
+      flushBlockquote();
+      flushTable();
+      inCode = true;
+      codeLang = line.slice(3).trim();
+      continue;
+    }
+    if (/^\|.*\|$/.test(line.trim())) {
+      flushParagraph();
+      flushList();
+      flushBlockquote();
       tableRows.push(line);
       continue;
     }
     flushTable();
-    if (line.startsWith("### ")) html.push(`<h3>${escapeHtml(line.slice(4))}</h3>`);
-    else if (line.startsWith("## ")) html.push(`<h2>${escapeHtml(line.slice(3))}</h2>`);
-    else if (line.startsWith("# ")) html.push(`<h1>${escapeHtml(line.slice(2))}</h1>`);
-    else if (line.trim()) html.push(`<p>${escapeHtml(line)}</p>`);
+    if (/^\s*[-*]\s+/.test(line)) {
+      flushParagraph();
+      flushBlockquote();
+      listItems.push(line.replace(/^\s*[-*]\s+/, "").trim());
+      continue;
+    }
+    if (/^\s*>\s?/.test(line)) {
+      flushParagraph();
+      flushList();
+      blockquoteLines.push(line.replace(/^\s*>\s?/, ""));
+      continue;
+    }
+    flushBlockquote();
+    if (!line.trim()) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    if (line.startsWith("### ")) {
+      flushParagraph();
+      flushList();
+      html.push(`<h3>${inlineMarkdown(line.slice(4).trim())}</h3>`);
+      continue;
+    }
+    if (line.startsWith("## ")) {
+      flushParagraph();
+      flushList();
+      html.push(`<h2>${inlineMarkdown(line.slice(3).trim())}</h2>`);
+      continue;
+    }
+    if (line.startsWith("# ")) {
+      flushParagraph();
+      flushList();
+      html.push(`<h1>${inlineMarkdown(line.slice(2).trim())}</h1>`);
+      continue;
+    }
+    paragraph.push(line.trim());
   }
+
+  flushParagraph();
+  flushList();
+  flushBlockquote();
   flushTable();
+  if (inCode) flushCode();
   return html.join("");
 }
 
