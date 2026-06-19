@@ -2705,7 +2705,7 @@ function markdownPreview(text) {
   const flushTable = () => {
     if (!tableRows.length) return;
     const rows = tableRows.map(parseTableCells);
-    const separatorIndex = rows.findIndex((row) => row.every((cell) => /^:?-{3,}:?$/.test(cell)));
+    const separatorIndex = rows.findIndex((row) => row.every((cell) => /^:?-{2,}:?$/.test(cell)));
     const header = separatorIndex >= 0 ? rows[0] : null;
     const body = separatorIndex >= 0 ? rows.slice(separatorIndex + 1) : rows;
     if (header) {
