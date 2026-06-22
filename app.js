@@ -31,6 +31,7 @@ const tableLabels = {
   final_sectors: "盘后板块",
   final_stocks: "盘后个股",
   portfolio_final_review: "盘后持仓复盘",
+  midyear_earnings_watch: "中报预增池",
   strategy_summary: "策略汇总",
   strategy_candidates: "策略候选",
   strategy_candidates_float_excluded: "流通股过滤",
@@ -53,6 +54,23 @@ function escapeHtml(input) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function rawPeValue(source) {
+  if (!source || typeof source !== "object") return "";
+  for (const key of ["PE", "pe", "pe_ttm", "市盈率", "动态市盈率"]) {
+    const value = source[key];
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return "";
+}
+
+function formatPeValue(source) {
+  const raw = rawPeValue(source);
+  if (raw === "" || raw === "-" || raw === "unavailable") return "";
+  const parsed = Number(String(raw).replace(/,/g, ""));
+  if (Number.isFinite(parsed) && parsed > 0) return `PE ${parsed.toFixed(parsed >= 100 ? 0 : parsed >= 10 ? 1 : 2)}`;
+  return "";
 }
 
 function tableTitle(table) {
@@ -205,6 +223,10 @@ function renderActionBrief(checkpoint) {
     <section class="brief">
       <h3>当日新增候选个股</h3>
       ${renderNewCandidatesWorkbench(checkpoint)}
+    </section>
+    <section class="brief">
+      <h3>中报预增</h3>
+      ${renderMidyearEarningsSection(checkpoint)}
     </section>
   `;
 }
@@ -722,11 +744,13 @@ function renderPortfolioSignalCard(item) {
   const insight = buildPortfolioInsight(item.priorityItem || { stock: [item.name, item.code].filter(Boolean).join(" "), priority: item.priority });
   const plan = portfolioTimeframePlan(item, insight);
   const abnormal = abnormalMoveText(item);
+  const pe = formatPeValue(item.row || item);
   return `
     <article class="stock-signal-card portfolio-signal-card ${item.priority === "P0" ? "urgent" : ""}">
       <div class="candidate-topline">
         <strong>${escapeHtml([item.name, item.code].filter(Boolean).join(" "))}</strong>
       </div>
+      ${pe ? `<p>估值：${escapeHtml(pe)}</p>` : ""}
       <p>走势 / 成交量：${escapeHtml(stockTrendVolumeText(item))}</p>
       <p>状态：${escapeHtml(portfolioStatusText(item, insight))}</p>
       <p>观察线：短线 ${escapeHtml(plan.lines.short)}｜中线 ${escapeHtml(plan.lines.mid)}｜长线 ${escapeHtml(plan.lines.long)}</p>
@@ -743,12 +767,14 @@ function renderPortfolioRuleCard(item) {
   const abnormal = abnormalMoveText(item);
   const levels = portfolioKeyLevelEntries(row);
   const actions = portfolioActionEntries(row);
+  const pe = formatPeValue(row);
   return `
     <article class="stock-signal-card portfolio-signal-card ${item.priority === "P0" ? "urgent" : ""}">
       <div class="candidate-topline">
         <strong>${escapeHtml([item.name, item.code].filter(Boolean).join(" "))}</strong>
         <span>${escapeHtml(row["类型"] || "持仓规则")}</span>
       </div>
+      ${pe ? `<p>估值：${escapeHtml(pe)}</p>` : ""}
       <p>当前状态：${escapeHtml(row["当前状态"] || stockTrendVolumeText(item))}</p>
       <p>判断：${escapeHtml(portfolioRuleJudgement(row))}</p>
       <div class="key-level-grid">
@@ -798,11 +824,13 @@ function portfolioRuleJudgement(row) {
 }
 
 function renderWatchlistSignalCard(item) {
+  const pe = formatPeValue(item.row || item);
   return `
     <article class="stock-signal-card ${item.priority === "P0" ? "urgent" : ""}">
       <div class="candidate-topline">
         <strong>${escapeHtml([item.name, item.code].filter(Boolean).join(" "))}</strong>
       </div>
+      ${pe ? `<p>估值：${escapeHtml(pe)}</p>` : ""}
       <p>走势 / 成交量：${escapeHtml(stockTrendVolumeText(item))}</p>
       <p>板块情况：${escapeHtml(watchlistSectorText(item))}</p>
       <p>为什么值得关注：${escapeHtml(watchlistFocusReason(item))}</p>
@@ -1939,6 +1967,124 @@ function renderCheckpointTables(checkpoint) {
   target.innerHTML = checkpoint ? (checkpoint.tables || []).map(renderTable).join("") : '<p class="empty">暂无数据表。</p>';
 }
 
+function checkpointTableRows(checkpoint, tableName) {
+  const table = (checkpoint?.tables || []).find((item) => item.name === tableName);
+  return table?.rows || [];
+}
+
+function latestCheckpointForTable(tableName) {
+  const activeCandidates = [...(activeDay?.checkpoints || [])].reverse();
+  for (const checkpoint of activeCandidates) {
+    if (checkpointTableRows(checkpoint, tableName).length) return checkpoint;
+  }
+  const allDays = [...(siteData?.timeline_days || [])].reverse();
+  for (const day of allDays) {
+    for (const checkpoint of [...(day.checkpoints || [])].reverse()) {
+      if (checkpointTableRows(checkpoint, tableName).length) return checkpoint;
+    }
+  }
+  return null;
+}
+
+function midyearEarningsData(checkpoint) {
+  const currentRows = checkpointTableRows(checkpoint, "midyear_earnings_watch.csv");
+  if (currentRows.length) return { checkpoint, rows: currentRows };
+  const fallback = latestCheckpointForTable("midyear_earnings_watch.csv");
+  return fallback ? { checkpoint: fallback, rows: checkpointTableRows(fallback, "midyear_earnings_watch.csv") } : { checkpoint: null, rows: [] };
+}
+
+function midyearStatusGroups(rows) {
+  const order = ["重点观察", "等待回踩", "公告后确认", "避免追高", "已兑现风险", "板块不配合"];
+  const groups = new Map(order.map((label) => [label, []]));
+  for (const row of rows) {
+    const status = row["每日状态"] || "重点观察";
+    if (!groups.has(status)) groups.set(status, []);
+    groups.get(status).push(row);
+  }
+  return [...groups.entries()];
+}
+
+function renderMidyearEarningsSection(checkpoint) {
+  const data = midyearEarningsData(checkpoint);
+  if (!data.rows.length) return '<p class="empty">暂无中报预增池数据。该板块只在 15:10 盘后更新。</p>';
+  const sourceLabel = data.checkpoint?.label || "15:10";
+  return `
+    <div class="midyear-section">
+      <p class="section-note">每日只在 15:10 更新。当前显示：${escapeHtml(sourceLabel)} 的最新中报预增预期池。</p>
+      ${midyearStatusGroups(data.rows)
+        .map(([status, rows]) => renderMidyearStatusGroup(status, rows))
+        .join("")}
+    </div>
+  `;
+}
+
+function renderMidyearStatusGroup(status, rows) {
+  if (!rows.length) return "";
+  return `
+    <section class="watchlist-bucket">
+      <h4>${escapeHtml(status)}</h4>
+      <div class="candidate-grid">
+        ${rows.map(renderMidyearEarningsCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderMidyearEarningsCard(row) {
+  const stock = row["股票"] || "-";
+  const pe = formatPeValue(row);
+  const stage = row["当前事件阶段"] || "-";
+  const sector = row["板块"] || "-";
+  const dates = [
+    row["中报预告公告日"] ? `预告 ${row["中报预告公告日"]}` : "",
+    row["正式中报预约披露日"] ? `中报 ${row["正式中报预约披露日"]}` : "",
+    row["距离预告日交易日"] ? `距预告 ${row["距离预告日交易日"]} 日` : "",
+    row["距离正式中报交易日"] ? `距中报 ${row["距离正式中报交易日"]} 日` : "",
+  ].filter(Boolean);
+  const board = [
+    sector,
+    row["板块排名"] ? `排名 ${row["板块排名"]}` : "",
+    row["板块涨跌幅"] !== "" && row["板块涨跌幅"] !== undefined ? `涨跌幅 ${row["板块涨跌幅"]}%` : "",
+    row["个股是否强于板块"] ? `强于板块 ${row["个股是否强于板块"]}` : "",
+  ].filter(Boolean);
+  const technical = [
+    row["是否站上VWAP"] ? `VWAP ${row["是否站上VWAP"]}` : "",
+    row["是否站上MA5"] ? `MA5 ${row["是否站上MA5"]}` : "",
+    row["是否站上MA10"] ? `MA10 ${row["是否站上MA10"]}` : "",
+    row["突破或回踩确认"] || "",
+  ].filter(Boolean);
+  const overpay = [
+    row["近5日涨幅"] !== "" && row["近5日涨幅"] !== undefined ? `5日 ${row["近5日涨幅"]}%` : "",
+    row["近10日涨幅"] !== "" && row["近10日涨幅"] !== undefined ? `10日 ${row["近10日涨幅"]}%` : "",
+    row["距离MA5偏离"] !== "" && row["距离MA5偏离"] !== undefined ? `距MA5 ${row["距离MA5偏离"]}%` : "",
+    row["距离MA10偏离"] !== "" && row["距离MA10偏离"] !== undefined ? `距MA10 ${row["距离MA10偏离"]}%` : "",
+    row["是否连续放量"] && row["是否连续放量"] !== "否" ? "连续放量" : "",
+    row["是否长上影/高开低走"] && row["是否长上影/高开低走"] !== "否" ? row["是否长上影/高开低走"] : "",
+  ].filter(Boolean);
+  return `
+    <article class="candidate-card risk-${escapeHtml(midyearRiskLevel(row))}">
+      <div class="candidate-topline">
+        <strong>${escapeHtml(stock)}</strong>
+        <b>${escapeHtml(row["每日状态"] || "-")}</b>
+      </div>
+      <span>${escapeHtml([stage, pe, row["announcement_level"] || ""].filter(Boolean).join(" · "))}</span>
+      <p>事件日：${escapeHtml(dates.join("｜") || "待补充")}</p>
+      <p>公告状态：${escapeHtml(`已公告 ${row["是否已公告中报预增"] || "否"}｜预增预期 ${row["是否存在中报预增预期"] || "否"}`)}</p>
+      <p>板块配合：${escapeHtml(board.join("｜") || "未评估")}</p>
+      <p>技术状态：${escapeHtml(technical.join("｜") || "行情未评估")}</p>
+      <p>透支情况：${escapeHtml(overpay.join("｜") || "未见明显透支")}</p>
+      <p>观察重点：${escapeHtml(row["观察重点"] || row["为什么值得跟踪"] || row["处理口径"] || "先看预期差、板块强度、公告后承接和技术位置。")}</p>
+    </article>
+  `;
+}
+
+function midyearRiskLevel(row) {
+  const status = row["每日状态"] || "";
+  if (["避免追高", "已兑现风险", "板块不配合"].includes(status)) return "high";
+  if (["等待回踩", "公告后确认"].includes(status)) return "mid";
+  return "low";
+}
+
 function buildMarketEmotionItems(decision) {
   const checkpoint = currentCheckpoint();
   const market = firstTableRow(checkpoint, "market_overview.csv");
@@ -2134,6 +2280,7 @@ function renderStrategyCandidateCard(row) {
   const stock = row["股票"] || "-";
   const metrics = [
     row["当前价"] ? `现价 ${row["当前价"]}` : "",
+    formatPeValue(row),
     row["当前涨幅%"] ? `涨幅 ${row["当前涨幅%"]}%` : "",
     row["开盘涨幅%"] ? `开盘 ${row["开盘涨幅%"]}%` : "",
     row["高点回撤%"] ? `回撤 ${row["高点回撤%"]}%` : "",
@@ -2233,6 +2380,7 @@ function renderCandidateLayer(title, description, items) {
 }
 
 function renderCandidateCard(item) {
+  const pe = formatPeValue(item);
   return `
     <article class="candidate-card risk-${escapeHtml(item.riskLevel)}">
       <div class="candidate-topline">
@@ -2240,6 +2388,7 @@ function renderCandidateCard(item) {
         <b>${escapeHtml(item.riskLabel)}</b>
       </div>
       <span>${escapeHtml([item.sector, item.pct ? `${item.pct}%` : "", item.vwap ? `VWAP ${item.vwap}` : ""].filter(Boolean).join(" · "))}</span>
+      ${pe ? `<p>估值：${escapeHtml(pe)}</p>` : ""}
       <p>候选原因：${escapeHtml(item.reason)}</p>
       <p>板块：${escapeHtml(item.sector || "未匹配")}</p>
       <p>风险评估：${escapeHtml(item.riskText)}</p>
@@ -2265,6 +2414,7 @@ function candidateInsight(row) {
     stock,
     sector,
     pct,
+    PE: row["PE"] || row["pe"] || "",
     vwap,
     source,
     reason,
