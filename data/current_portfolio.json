@@ -1,6 +1,6 @@
 {
   "source": "/Users/char/Library/Mobile Documents/com~apple~CloudDocs/Obsidian Vault/investment/portfolio.md",
-  "modified": "2026-06-23T09:26:45",
+  "modified": "2026-06-23T21:04:20",
   "latest_date": "2026-06-22",
   "base_holdings": [
     {
@@ -47,9 +47,9 @@
       "code": "688143",
       "date": "",
       "name": "长盈通",
-      "shares_total": "263",
-      "avg_cost": "212.027",
-      "current_snapshot": "218",
+      "shares_total": "63",
+      "avg_cost": "长盈通",
+      "current_snapshot": "63",
       "shares_added_recently": "",
       "last_add_price": ""
     },
