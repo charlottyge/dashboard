@@ -43,6 +43,7 @@ let activeDay = null;
 let activeCheckpointId = null;
 let activeView = "radar";
 let activeWeeklyPath = null;
+const dayDataCache = new Map();
 
 function value(input, fallback = "-") {
   return input === null || input === undefined || input === "" ? fallback : input;
@@ -87,8 +88,10 @@ function setupDateSelector() {
   if (!select) return;
   const days = siteData.timeline_days || [];
   select.innerHTML = days.map((day) => `<option value="${escapeHtml(day.date)}">${escapeHtml(day.date)}</option>`).join("");
-  select.addEventListener("change", () => selectDay(select.value));
-  if (days.length) selectDay(days[0].date);
+  select.addEventListener("change", () => {
+    void selectDay(select.value);
+  });
+  if (days.length) void selectDay(days[0].date);
 }
 
 function setupViewTabs() {
@@ -110,10 +113,29 @@ function renderViewTabs() {
   });
 }
 
-function selectDay(date) {
-  activeDay = (siteData.timeline_days || []).find((day) => day.date === date);
+async function loadDayPayload(dayMeta) {
+  if (!dayMeta?.day_path) return { date: dayMeta?.date || "", checkpoints: [] };
+  if (dayDataCache.has(dayMeta.day_path)) return dayDataCache.get(dayMeta.day_path);
+  const response = await fetch(`./${dayMeta.day_path}`);
+  if (!response.ok) throw new Error(`读取日度数据失败：${dayMeta.day_path}`);
+  const payload = await response.json();
+  dayDataCache.set(dayMeta.day_path, payload);
+  return payload;
+}
+
+async function selectDay(date) {
+  const dayMeta = (siteData.timeline_days || []).find((day) => day.date === date);
+  activeDay = dayMeta || { date, checkpoints: [] };
   activeCheckpointId = timelineCheckpoints(activeDay)?.[0]?.id || null;
   if (typeof renderPreopen === "function") renderPreopen(activeDay);
+  const subtitle = byId("timeline-subtitle");
+  if (subtitle && dayMeta?.day_path) {
+    subtitle.textContent = `${dayMeta.date} · 正在加载…`;
+  }
+  if (dayMeta?.day_path) {
+    activeDay = await loadDayPayload(dayMeta);
+  }
+  activeCheckpointId = timelineCheckpoints(activeDay)?.[0]?.id || null;
   renderTimeline();
 }
 
@@ -1977,8 +1999,8 @@ function latestCheckpointForTable(tableName) {
   for (const checkpoint of activeCandidates) {
     if (checkpointTableRows(checkpoint, tableName).length) return checkpoint;
   }
-  const allDays = [...(siteData?.timeline_days || [])].reverse();
-  for (const day of allDays) {
+  const loadedDays = [activeDay, ...Array.from(dayDataCache.values())].filter(Boolean);
+  for (const day of loadedDays) {
     for (const checkpoint of [...(day.checkpoints || [])].reverse()) {
       if (checkpointTableRows(checkpoint, tableName).length) return checkpoint;
     }
