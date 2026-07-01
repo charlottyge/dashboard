@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-30T14:30:32",
+  "generated_at": "2026-07-01T14:37:12",
   "demo_day": "2026-06-15",
   "source": {
     "intraday_root": "tool/intraday_exports",
@@ -8,12 +8,12 @@
   "latest_intraday": {
     "id": "scan_1330",
     "label": "13:30 午后重启",
-    "directory": "tool/intraday_exports/2026-06-30/scan_1330",
-    "modified": "2026-06-30T14:24:24",
+    "directory": "tool/intraday_exports/2026-07-01/scan_1330",
+    "modified": "2026-07-01T14:00:00",
     "checkpoint": "13:30",
     "risk_preference": "低",
     "has_ai_analysis": true,
-    "day_path": "data/days/2026-06-30.json"
+    "day_path": "data/days/2026-07-01.json"
   },
   "latest_strategy": {
     "id": "scan_strategy_1430",
@@ -242,9 +242,31 @@
   },
   "timeline_days": [
     {
+      "date": "2026-07-01",
+      "day_path": "data/days/2026-07-01.json",
+      "modified": "2026-07-01T14:37:11",
+      "checkpoint_count": 2,
+      "checkpoints": [
+        {
+          "id": "scan_1030",
+          "label": "10:30 换手确认",
+          "modified": "2026-07-01T10:44:53",
+          "risk_preference": "低",
+          "has_ai_analysis": true
+        },
+        {
+          "id": "scan_1330",
+          "label": "13:30 午后重启",
+          "modified": "2026-07-01T14:00:00",
+          "risk_preference": "低",
+          "has_ai_analysis": true
+        }
+      ]
+    },
+    {
       "date": "2026-06-30",
       "day_path": "data/days/2026-06-30.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:11",
       "checkpoint_count": 3,
       "checkpoints": [
         {
@@ -273,7 +295,7 @@
     {
       "date": "2026-06-29",
       "day_path": "data/days/2026-06-29.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:11",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -330,7 +352,7 @@
     {
       "date": "2026-06-26",
       "day_path": "data/days/2026-06-26.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:11",
       "checkpoint_count": 1,
       "checkpoints": [
         {
@@ -345,7 +367,7 @@
     {
       "date": "2026-06-25",
       "day_path": "data/days/2026-06-25.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:11",
       "checkpoint_count": 6,
       "checkpoints": [
         {
@@ -395,7 +417,7 @@
     {
       "date": "2026-06-24",
       "day_path": "data/days/2026-06-24.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:11",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -452,7 +474,7 @@
     {
       "date": "2026-06-23",
       "day_path": "data/days/2026-06-23.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:11",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -509,7 +531,7 @@
     {
       "date": "2026-06-22",
       "day_path": "data/days/2026-06-22.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:12",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -566,7 +588,7 @@
     {
       "date": "2026-06-18",
       "day_path": "data/days/2026-06-18.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:12",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -623,7 +645,7 @@
     {
       "date": "2026-06-17",
       "day_path": "data/days/2026-06-17.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:12",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -680,7 +702,7 @@
     {
       "date": "2026-06-16",
       "day_path": "data/days/2026-06-16.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:12",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -737,7 +759,7 @@
     {
       "date": "2026-06-15",
       "day_path": "data/days/2026-06-15.json",
-      "modified": "2026-06-30T14:30:32",
+      "modified": "2026-07-01T14:37:12",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -2182,6 +2204,186 @@
   "recent_exports": [
     {
       "name": "ai_analysis.json",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/ai_analysis.json",
+      "modified": "2026-07-01T14:36:59",
+      "size": 4009
+    },
+    {
+      "name": "ai_analysis.json",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/ai_analysis.json",
+      "modified": "2026-07-01T14:36:59",
+      "size": 4056
+    },
+    {
+      "name": "checkpoint_decision_summary.json",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/checkpoint_decision_summary.json",
+      "modified": "2026-07-01T14:00:00",
+      "size": 14066
+    },
+    {
+      "name": "summary.json",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/summary.json",
+      "modified": "2026-07-01T14:00:00",
+      "size": 4787
+    },
+    {
+      "name": "candidate_event_log.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/candidate_event_log.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 96405
+    },
+    {
+      "name": "errors.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/errors.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 10181
+    },
+    {
+      "name": "tech_sector_stock_map.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/tech_sector_stock_map.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 25803
+    },
+    {
+      "name": "tech_sector_daily_k.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/tech_sector_daily_k.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 1251422
+    },
+    {
+      "name": "portfolio_decision_rules.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/portfolio_decision_rules.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 2727
+    },
+    {
+      "name": "pullback_setups.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/pullback_setups.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 45268
+    },
+    {
+      "name": "portfolio_afternoon_status.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/portfolio_afternoon_status.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 3669
+    },
+    {
+      "name": "candidate_afternoon_restart.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/candidate_afternoon_restart.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 7526
+    },
+    {
+      "name": "sector_afternoon_change.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/sector_afternoon_change.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 1518
+    },
+    {
+      "name": "hot_board_front_core.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/hot_board_front_core.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 1867
+    },
+    {
+      "name": "market_sector_scan.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/market_sector_scan.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 10795
+    },
+    {
+      "name": "market_overview.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1330/market_overview.csv",
+      "modified": "2026-07-01T14:00:00",
+      "size": 279
+    },
+    {
+      "name": "checkpoint_decision_summary.json",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/checkpoint_decision_summary.json",
+      "modified": "2026-07-01T10:44:53",
+      "size": 11338
+    },
+    {
+      "name": "summary.json",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/summary.json",
+      "modified": "2026-07-01T10:44:53",
+      "size": 4687
+    },
+    {
+      "name": "candidate_event_log.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/candidate_event_log.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 75656
+    },
+    {
+      "name": "errors.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/errors.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 9052
+    },
+    {
+      "name": "tech_sector_stock_map.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/tech_sector_stock_map.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 25803
+    },
+    {
+      "name": "tech_sector_daily_k.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/tech_sector_daily_k.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 1216168
+    },
+    {
+      "name": "portfolio_decision_rules.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/portfolio_decision_rules.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 2710
+    },
+    {
+      "name": "portfolio_extra.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/portfolio_extra.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 325
+    },
+    {
+      "name": "watchlist_portfolio_actions.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/watchlist_portfolio_actions.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 4541
+    },
+    {
+      "name": "pullback_setups.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/pullback_setups.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 41760
+    },
+    {
+      "name": "candidate_scores.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/candidate_scores.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 12821
+    },
+    {
+      "name": "hot_board_front_core.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/hot_board_front_core.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 1836
+    },
+    {
+      "name": "market_sector_scan.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/market_sector_scan.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 10676
+    },
+    {
+      "name": "market_overview.csv",
+      "relative_path": "tool/intraday_exports/2026-07-01/scan_1030/market_overview.csv",
+      "modified": "2026-07-01T10:44:53",
+      "size": 277
+    },
+    {
+      "name": "ai_analysis.json",
       "relative_path": "tool/intraday_exports/2026-06-30/scan_1330/ai_analysis.json",
       "modified": "2026-06-30T14:30:22",
       "size": 4231
@@ -2479,186 +2681,6 @@
       "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/summary.json",
       "modified": "2026-06-29T21:12:36",
       "size": 4769
-    },
-    {
-      "name": "candidate_event_log.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/candidate_event_log.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 92201
-    },
-    {
-      "name": "errors.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/errors.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 3159
-    },
-    {
-      "name": "tech_sector_stock_map.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/tech_sector_stock_map.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 25803
-    },
-    {
-      "name": "tech_sector_daily_k.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/tech_sector_daily_k.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 1255344
-    },
-    {
-      "name": "portfolio_decision_rules.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/portfolio_decision_rules.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 3404
-    },
-    {
-      "name": "pullback_setups.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/pullback_setups.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 46792
-    },
-    {
-      "name": "midyear_earnings_watch.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/midyear_earnings_watch.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 11108
-    },
-    {
-      "name": "portfolio_final_review.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/portfolio_final_review.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 964
-    },
-    {
-      "name": "final_stocks.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/final_stocks.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 8299
-    },
-    {
-      "name": "final_sectors.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/final_sectors.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 2018
-    },
-    {
-      "name": "final_market.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/final_market.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 208
-    },
-    {
-      "name": "hot_board_front_core.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/hot_board_front_core.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 1842
-    },
-    {
-      "name": "market_sector_scan.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/market_sector_scan.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 10525
-    },
-    {
-      "name": "market_overview.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1510/market_overview.csv",
-      "modified": "2026-06-29T21:12:36",
-      "size": 278
-    },
-    {
-      "name": "checkpoint_decision_summary.json",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_strategy_1430/checkpoint_decision_summary.json",
-      "modified": "2026-06-29T20:53:49",
-      "size": 2089
-    },
-    {
-      "name": "summary.json",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_strategy_1430/summary.json",
-      "modified": "2026-06-29T20:53:49",
-      "size": 3403
-    },
-    {
-      "name": "candidate_event_log.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_strategy_1430/candidate_event_log.csv",
-      "modified": "2026-06-29T20:53:49",
-      "size": 4347
-    },
-    {
-      "name": "errors.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_strategy_1430/errors.csv",
-      "modified": "2026-06-29T20:53:49",
-      "size": 0
-    },
-    {
-      "name": "strategy_summary.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_strategy_1430/strategy_summary.csv",
-      "modified": "2026-06-29T20:53:49",
-      "size": 206
-    },
-    {
-      "name": "strategy_candidates_float_unavailable.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_strategy_1430/strategy_candidates_float_unavailable.csv",
-      "modified": "2026-06-29T20:53:49",
-      "size": 0
-    },
-    {
-      "name": "strategy_candidates_float_excluded.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_strategy_1430/strategy_candidates_float_excluded.csv",
-      "modified": "2026-06-29T20:53:49",
-      "size": 4240
-    },
-    {
-      "name": "strategy_candidates.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_strategy_1430/strategy_candidates.csv",
-      "modified": "2026-06-29T20:53:49",
-      "size": 7657
-    },
-    {
-      "name": "checkpoint_decision_summary.json",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1430/checkpoint_decision_summary.json",
-      "modified": "2026-06-29T20:46:47",
-      "size": 11385
-    },
-    {
-      "name": "summary.json",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1430/summary.json",
-      "modified": "2026-06-29T20:46:47",
-      "size": 4739
-    },
-    {
-      "name": "candidate_event_log.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1430/candidate_event_log.csv",
-      "modified": "2026-06-29T20:46:47",
-      "size": 105391
-    },
-    {
-      "name": "errors.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1430/errors.csv",
-      "modified": "2026-06-29T20:46:47",
-      "size": 18813
-    },
-    {
-      "name": "tech_sector_stock_map.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1430/tech_sector_stock_map.csv",
-      "modified": "2026-06-29T20:46:47",
-      "size": 25803
-    },
-    {
-      "name": "tech_sector_daily_k.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1430/tech_sector_daily_k.csv",
-      "modified": "2026-06-29T20:46:47",
-      "size": 1255164
-    },
-    {
-      "name": "portfolio_decision_rules.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1430/portfolio_decision_rules.csv",
-      "modified": "2026-06-29T20:46:47",
-      "size": 3965
-    },
-    {
-      "name": "pullback_setups.csv",
-      "relative_path": "tool/intraday_exports/2026-06-29/scan_1430/pullback_setups.csv",
-      "modified": "2026-06-29T20:46:47",
-      "size": 48223
     }
   ]
 }

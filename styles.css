@@ -930,6 +930,71 @@ input {
   line-height: 1.45;
 }
 
+.tech-crowding-group {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.tech-crowding-card .sector-card-head span {
+  max-width: 120px;
+  text-align: center;
+}
+
+.stock-pill-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  vertical-align: top;
+}
+
+.stock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef4f6;
+  color: #31444d;
+  margin: 2px 6px 2px 0;
+}
+
+.stock-pill .stock-code {
+  color: #6b7d85;
+  font-size: 12px;
+}
+
+.stock-pill.match-portfolio {
+  background: #e8f5ee;
+  color: #166447;
+}
+
+.stock-pill.match-watchlist {
+  background: #eef2ff;
+  color: #3348a5;
+}
+
+.stock-pill.match-both {
+  background: #fff1dd;
+  color: #9a5a00;
+}
+
+.stock-pill-muted {
+  background: #f4f7f8;
+  color: #768891;
+}
+
+.mini-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .sector-card-head {
   display: flex;
   justify-content: space-between;

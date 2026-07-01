@@ -4,6 +4,7 @@ const LOCAL_MARKDOWN_KEY = "a-share-dashboard-markdown-v1";
 const tableLabels = {
   market_overview: "市场概览",
   market_sector_scan: "板块扫描",
+  tech_sector_stock_map: "科技细分拥挤度映射",
   hot_board_front_core: "强板块中军 / 前排",
   pullback_setups: "当日回踩观察",
   market_temperature: "竞价温度",
@@ -237,6 +238,10 @@ function renderActionBrief(checkpoint) {
     <section class="brief">
       <h3>市场板块</h3>
       ${renderMarketSectorsSection(checkpoint, decision)}
+    </section>
+    <section class="brief">
+      <h3>科技细分拥挤度映射</h3>
+      ${renderTechCrowdingSection(checkpoint)}
     </section>
     <section class="brief">
       <h3>Watchlist</h3>
@@ -534,6 +539,35 @@ function renderMarketSectorsSection(checkpoint) {
   `;
 }
 
+function renderTechCrowdingSection(checkpoint) {
+  const groups = techCrowdingGroups(checkpoint);
+  if (!groups.length) return '<p class="empty">当前 checkpoint 没有科技细分拥挤度映射。</p>';
+  const visibleGroups = groups.filter((group) => ["A 极拥挤", "B 风向标"].includes(group.category));
+  const hiddenGroups = groups.filter((group) => !["A 极拥挤", "B 风向标"].includes(group.category));
+  return `
+    <div class="section-note">这层不是实时板块涨幅排名，而是把科技细分分支拆成“前排弹性 / 中军容量 / 补涨观察”的映射，帮助判断拥挤度和承接结构。</div>
+    <div class="sector-analysis-group">
+      ${visibleGroups.length ? `<div class="sector-analysis-grid">${visibleGroups.flatMap((group) => group.items).map(renderTechCrowdingCard).join("")}</div>` : '<p class="empty">暂无 A / B 级科技细分映射。</p>'}
+      ${
+        hiddenGroups.length
+          ? `<details class="collapsed-stock-list">
+              <summary>展开其他科技细分分支（${hiddenGroups.reduce((sum, group) => sum + group.items.length, 0)} 个）</summary>
+              ${hiddenGroups.map((group) => `
+                <section class="tech-crowding-group">
+                  <div class="sector-analysis-title">
+                    <h4>${escapeHtml(group.category)}</h4>
+                    <span>${group.items.length} 个分支</span>
+                  </div>
+                  <div class="sector-analysis-grid">${group.items.map(renderTechCrowdingCard).join("")}</div>
+                </section>
+              `).join("")}
+            </details>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 function topSectorDisplayItems(checkpoint) {
   const currentRows = sectorRowsForCheckpoint(checkpoint);
   const previous = previousCheckpoint(checkpoint);
@@ -612,6 +646,143 @@ function renderSectorAnalysisCard(item) {
       <p>成交量：${escapeHtml(item.volume)}</p>
       <p>中军：${escapeHtml(item.core || "-")}</p>
       <p>前排：${escapeHtml(item.front.length ? item.front.join("；") : "-")}</p>
+    </article>
+  `;
+}
+
+function techCrowdingRows(checkpoint) {
+  return tableRows(checkpoint, "tech_sector_stock_map.csv");
+}
+
+function techCrowdingGroups(checkpoint) {
+  const rows = techCrowdingRows(checkpoint);
+  if (!rows.length) return [];
+  const membership = techCrowdingMembershipMaps();
+  const boardMap = new Map();
+  rows.forEach((row) => {
+    const board = row["板块"] || "";
+    if (!board) return;
+    if (!boardMap.has(board)) {
+      boardMap.set(board, {
+        name: board,
+        category: row["分类"] || "未分类",
+        fronts: [],
+        cores: [],
+        laggards: [],
+        portfolioHits: [],
+        watchlistHits: [],
+        unresolved: 0,
+      });
+    }
+    const item = boardMap.get(board);
+    const stock = techCrowdingStock(row, membership);
+    if (row["状态"] && row["状态"] !== "resolved") item.unresolved += 1;
+    if (stock.membership === "both" || stock.membership === "portfolio") item.portfolioHits.push(stock.name);
+    if (stock.membership === "both" || stock.membership === "watchlist") item.watchlistHits.push(stock.name);
+    if (row["角色"] === "前排弹性") item.fronts.push(stock);
+    else if (row["角色"] === "中军容量") item.cores.push(stock);
+    else item.laggards.push(stock);
+  });
+  const grouped = new Map();
+  [...boardMap.values()]
+    .sort((a, b) => techCrowdingCategoryRank(a.category) - techCrowdingCategoryRank(b.category) || a.name.localeCompare(b.name, "zh-CN"))
+    .forEach((item) => {
+      const category = item.category || "未分类";
+      if (!grouped.has(category)) grouped.set(category, []);
+      grouped.get(category).push(item);
+    });
+  return [...grouped.entries()].map(([category, items]) => ({ category, items }));
+}
+
+function techCrowdingCategoryRank(category) {
+  if (String(category).startsWith("A")) return 1;
+  if (String(category).startsWith("B")) return 2;
+  if (String(category).startsWith("C")) return 3;
+  if (String(category).startsWith("D")) return 4;
+  return 9;
+}
+
+function techCrowdingStock(row, membership) {
+  const name = row["名称"] || row["输入股票"] || "";
+  const code = String(row["代码"] || "").trim();
+  const key = normalizeStockKey(`${name}${code}`);
+  return {
+    name: name || code || "-",
+    code,
+    membership: membership.get(key) || "none",
+  };
+}
+
+function techCrowdingMembershipMaps() {
+  const map = new Map();
+  const mark = (name, code, type) => {
+    const key = normalizeStockKey(`${name || ""}${code || ""}`);
+    if (!key) return;
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, type);
+      return;
+    }
+    if (prev !== type) map.set(key, "both");
+  };
+  currentWatchlistItems().forEach((item) => mark(item.name, item.code, "watchlist"));
+  mergedHoldings().forEach((item) => mark(item.name || item.stock, item.code, "portfolio"));
+  return map;
+}
+
+function techCrowdingHitText(names) {
+  const unique = [...new Set(names.filter(Boolean))];
+  if (!unique.length) return "-";
+  const visible = unique.slice(0, 3).join("、");
+  return unique.length > 3 ? `${visible} 等 ${unique.length} 只` : visible;
+}
+
+function renderTechCrowdingStockList(stocks) {
+  if (!stocks.length) return "-";
+  const visible = stocks.slice(0, 4).map(renderTechCrowdingStockPill).join("");
+  const tail = stocks.length > 4 ? `<span class="stock-pill stock-pill-muted">等 ${stocks.length} 只</span>` : "";
+  return `<span class="stock-pill-row">${visible}${tail}</span>`;
+}
+
+function renderTechCrowdingStockPill(stock) {
+  const membershipClass =
+    stock.membership === "both"
+      ? "match-both"
+      : stock.membership === "portfolio"
+        ? "match-portfolio"
+        : stock.membership === "watchlist"
+          ? "match-watchlist"
+          : "";
+  const badge =
+    stock.membership === "both"
+      ? '<span class="mini-tag">持仓+WL</span>'
+      : stock.membership === "portfolio"
+        ? '<span class="mini-tag">持仓</span>'
+        : stock.membership === "watchlist"
+          ? '<span class="mini-tag">WL</span>'
+          : "";
+  return `
+    <span class="stock-pill ${membershipClass}">
+      <span>${escapeHtml(stock.name || "-")}</span>
+      ${stock.code ? `<span class="stock-code">${escapeHtml(stock.code)}</span>` : ""}
+      ${badge}
+    </span>
+  `;
+}
+
+function renderTechCrowdingCard(item) {
+  return `
+    <article class="sector-analysis-card tech-crowding-card">
+      <div class="sector-card-head">
+        <strong>${escapeHtml(item.name || "-")}</strong>
+        <span>${escapeHtml(item.category || "-")}</span>
+      </div>
+      <p>前排弹性：${renderTechCrowdingStockList(item.fronts)}</p>
+      <p>中军容量：${renderTechCrowdingStockList(item.cores)}</p>
+      <p>补涨观察：${renderTechCrowdingStockList(item.laggards)}</p>
+      <p>命中持仓：${escapeHtml(techCrowdingHitText(item.portfolioHits))}</p>
+      <p>命中 Watchlist：${escapeHtml(techCrowdingHitText(item.watchlistHits))}</p>
+      ${item.unresolved ? `<p>映射状态：有 ${escapeHtml(item.unresolved)} 个未完全解析样本</p>` : `<p>映射状态：已解析</p>`}
     </article>
   `;
 }
@@ -2547,6 +2718,10 @@ function visibleColumnsForTable(table, columns) {
     const selected = preferred.filter((column) => columns.includes(column));
     return selected.length ? selected : columns.filter((column) => !column.includes("排名")).slice(0, 12);
   }
+  if (table.name === "tech_sector_stock_map.csv") {
+    const preferred = ["板块", "分类", "角色", "输入股票", "代码", "名称", "状态"];
+    return preferred.filter((column) => columns.includes(column));
+  }
   return columns.slice(0, 16);
 }
 
@@ -2554,6 +2729,9 @@ function visibleRowsForTable(table) {
   const rows = table.rows || [];
   if (table.name === "market_sector_scan.csv") {
     return rows.slice(0, 8);
+  }
+  if (table.name === "tech_sector_stock_map.csv") {
+    return rows.slice(0, 80);
   }
   return rows;
 }
