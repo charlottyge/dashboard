@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-14T13:55:20",
+  "generated_at": "2026-07-16T14:35:55",
   "demo_day": "2026-06-15",
   "source": {
     "intraday_root": "tool/intraday_exports",
@@ -8,12 +8,12 @@
   "latest_intraday": {
     "id": "scan_1330",
     "label": "13:30 午后重启",
-    "directory": "tool/intraday_exports/2026-07-14/scan_1330",
-    "modified": "2026-07-14T13:40:38",
+    "directory": "tool/intraday_exports/2026-07-16/scan_1330",
+    "modified": "2026-07-16T14:17:04",
     "checkpoint": "13:30",
     "risk_preference": "低",
     "has_ai_analysis": true,
-    "day_path": "data/days/2026-07-14.json"
+    "day_path": "data/days/2026-07-16.json"
   },
   "latest_strategy": {
     "id": "scan_strategy_1430",
@@ -256,9 +256,53 @@
   },
   "timeline_days": [
     {
+      "date": "2026-07-16",
+      "day_path": "data/days/2026-07-16.json",
+      "modified": "2026-07-16T14:35:54",
+      "checkpoint_count": 1,
+      "checkpoints": [
+        {
+          "id": "scan_1330",
+          "label": "13:30 午后重启",
+          "modified": "2026-07-16T14:17:04",
+          "risk_preference": "低",
+          "has_ai_analysis": true,
+          "ai_analysis": {
+            "headline": "13:30 指数与宽度仍弱，医药传媒仅属局部抱团，组合风险处理优先于追逐前排",
+            "summary": "上证、深成指分别下跌 0.97% 和 1.16%，创业板与科创50跌幅超过 2%，上涨/下跌家数为 2463/2696，指数和宽度都没有形成普涨确认。涨停54家但跌停38家，强弱两端同时扩张，盘面更接近高波动分化。生物制药、传媒娱乐和医疗器械的前排仍有延续，但板块数据来自行业 fallback 聚合，只能确认局部强度，不能据此认定细分概念全面成为主线。",
+            "index_breadth_analysis": "主要指数全线下跌，成长指数明显弱于上证，中小100仅跌0.14%也不能掩盖全市场下跌家数略多于上涨家数。54家涨停对应38家跌停，说明赚钱效应集中在少数强线，同时风险释放也很剧烈；当前不是指数抗跌带动的广泛修复，风险偏好应维持低档。",
+            "sector_analysis": "fallback 行业聚合中，生物制药涨5.17%、涨家率100%、5只涨停，常山药业、海南海药、珍宝岛、哈药股份均在VWAP上方；传媒娱乐涨4.91%，光线传媒等前排也保持VWAP上方；医疗器械涨4.51%，九安医疗承担成交中军。三条线具备局部延续证据，但数据不是原始概念板块快照，且生物制药已标记高拥挤、医药与传媒存在两日加速，14:30前不宜把排名直接升级为可追逐的新主线。电子信息成交额靠前且东山精密在VWAP上方，可作扩散观察，但电子器件整体仅涨0.95%、涨家率44.8%，科技方向内部仍明显分化。",
+            "portfolio_analysis": "9只持仓中8只被标记为必须处理/风险触发，除甘李药业外其余均在VWAP下方。南大光电、烽火通信、蓝箭电子、长盈通和华亚智能跌幅在6.6%至8.3%之间，且多数高点回撤接近或超过5%；蓝思科技冲高5.2%后回落至-0.7%，同样弱于板块。甘李药业虽在69.48的VWAP上方，但仍弱于强势的生物制药板块，只能视为修复观察。当前重点是按既定风险线和修复线分层处理，不以板块前排上涨替代持仓自身确认。",
+            "watchlist_analysis": "本次导出 watchlist_count 为0，没有独立观察池可验证连续性。现有跟踪对象主要来自持仓/板块关联，14:30应优先检查甘李药业能否继续守住69.48并转为强于板块，以及蓝思科技能否重回39.65；在出现这些确认前，不把弱势持仓自动保留为强线观察标的。",
+            "candidate_analysis": "午后候选共9只，没有一只形成明确的突破确认；8只处于剔除观察，且多数位于VWAP下方并弱于所属板块。甘李药业是唯一回流待确认对象，当前在VWAP上方，但未突破上午高点、仍弱于板块。候选池与板块前排出现明显割裂，说明可交易强度集中在新的行业前排，而原跟踪池没有同步受益。",
+            "risk_warnings": [
+              "板块排名使用新浪行业成员股 fallback 聚合，不能当作东方财富概念板块原始快照，也不能据此确认更细的题材主线。",
+              "涨停54家与跌停38家并存，尾部风险显著，局部强线不代表市场风险已经解除。",
+              "9只持仓中8只触发风险处理，多只跌幅超过6%且在VWAP下方，组合风险明显高于板块前排表现。",
+              "生物制药处于高拥挤，医药和传媒存在两日加速，午后追高面临回落和封板松动风险。"
+            ],
+            "next_validation": [
+              "14:30复核生物制药、传媒娱乐、医疗器械的中军和前排是否继续站在VWAP上方，涨停结构是否松动。",
+              "检查上涨/下跌家数能否转为明显净上涨，并观察创业板、科创50跌幅是否收窄，以区分局部抱团与市场修复。",
+              "逐只核对风险持仓是否收回修复线；蓝思科技关注39.65，甘李药业关注69.48，其余按表内风险线处理。",
+              "确认电子信息的成交扩散能否带动电子器件涨家率改善，否则仍按内部结构分化处理。"
+            ],
+            "do_not_do": [
+              "不要因医药、传媒行业聚合排名靠前，就把 fallback 数据外推为所有相关概念股的确定性机会。",
+              "不要在多数持仓低于VWAP且弱于板块时补仓摊低成本。",
+              "不要把涨停家数较多单独解释为普涨，必须同时看38家跌停和下跌家数占优。",
+              "不要追逐两日加速或高拥挤前排，等待14:30的VWAP、封板和宽度确认。"
+            ],
+            "generated_at": "2026-07-16T14:34:52+08:00",
+            "source": "a-share-intraday-decision"
+          }
+        }
+      ]
+    },
+    {
       "date": "2026-07-14",
       "day_path": "data/days/2026-07-14.json",
-      "modified": "2026-07-14T13:55:19",
+      "modified": "2026-07-16T14:35:54",
       "checkpoint_count": 4,
       "checkpoints": [
         {
@@ -287,43 +331,14 @@
           "label": "13:30 午后重启",
           "modified": "2026-07-14T13:40:38",
           "risk_preference": "低",
-          "has_ai_analysis": true,
-          "ai_analysis": {
-            "headline": "13:30 宽度与指数同步走强，资金从石油化工到电子器件多线扩散，但板块层仍是行业 fallback，细分主线需等 14:30 再定型",
-            "summary": "13:30 这一档，上证 +0.64%、深成指 +2.15%、创业板 +3.00%、科创50 +0.92%，同时上涨 3719 家、下跌 1470 家，涨停 81、跌停 26，说明这不是单纯几条抱团线在硬拉，而是明显存在扩散。盘面强度真实存在，但板块层数据来自新浪行业 fallback，当前更适合确认资金是往能源、材料、机械、电子这些大方向扩散，而不是直接把行业名当成最终交易主线。午后最重要的不是再追高，而是等 14:30 看哪些细分方向还能保住成交、前排和个股承接。",
-            "index_breadth_analysis": "这一档指数和宽度是相互印证的，不再是典型的指数强、个股弱。深成指、创业板明显强于上证，同时上涨家数超过 3700 家，说明高弹性方向和普遍风险偏好都在改善。需要注意的是，宽度虽然不错，但涨停 81、跌停 26 说明情绪仍有分化，盘面不是无差别安全，而是进入了可以做强线、但仍要防高低切和尾盘回落的阶段。",
-            "sector_analysis": "板块前排目前集中在石油行业、玻璃行业、机械行业、电子信息、化纤行业、化工行业、电子器件。这里面机械行业涨幅排名第 3、成交额排名第 3、涨家率 100%，电子信息涨幅排名第 4、成交额排名第 2、涨家率接近 99%，电子器件涨幅排名第 7 但成交额排名第 1、涨停数 5，这些更像有真实资金承接的方向。石油行业排第 1、但它属于行业 fallback 下的粗颗粒结果，更适合当作风险偏好和资金流向的上层线索。当前可以确认‘扩散已出现’，但不能直接把石油、玻璃、机械这些行业名等同于最终细分主线，必须继续用 14:30 的细分概念和前排个股确认。",
-            "portfolio_analysis": "持仓侧比上午明显修复，甘李药业、厦门钨业、长盈通都已经回到 VWAP 上方并进入强势趋势持有或利润保护状态，说明真正强的仓位已经重新拿回主动权。欧莱新材、南大光电、蓝思科技也都站回 VWAP 上方，但其中南大光电、蓝思科技仍然弱于板块，属于修复但未完成相对强势确认。华亚智能、蓝箭电子、烽火通信虽然也在 VWAP 上方，但状态仍偏‘弱于板块 / 修复失败’，这类票不能因为翻回 VWAP 就自动升级。当前持仓节奏应是强势票继续看保护线，弱势修复票继续等 14:30 的相对强弱结论。",
-            "watchlist_analysis": "这一档没有独立 watchlist 表，但候选池已经足够承担观察池功能。更值得带到下一档继续看的，是已经完成午后确认且仍保持 VWAP 上方的样本，而不是所有午间仍然活跃的名字。当前观察重点应放在能否把午后确认延续到尾盘，而不是再去扩容新的跟风样本。",
-            "candidate_analysis": "候选池这档是偏强的。泰山石油、人民同泰、中恒集团、电投能源、甘李药业、厦门钨业、长盈通、一心堂等样本都已经进入‘午后确认’，且大多保持 VWAP 上方，有的还突破了上午高点，这说明午后并不是单纯反抽，而是有一批样本完成了真正的二次承接。需要区分的是：这类午后确认样本里，有些属于能源链和化工扩散，有些属于医药和资源个股自身强度，不应简单拼成一个主线篮子。下一档要做的是收缩到真正能把涨幅、成交、相对板块强势都留到尾盘的那部分名字。",
-            "risk_warnings": [
-              "不要把新浪行业 fallback 的前排行业名直接当成最终细分主线结论。",
-              "宽度改善不等于所有修复票都安全，弱于板块的持仓仍然需要分层处理。",
-              "午后确认样本已经很多，越到这种阶段越要防尾盘分化和跟风掉队。",
-              "强势票可以看保护线，修复票不能因为回到 VWAP 上方就立刻追着加仓。"
-            ],
-            "next_validation": [
-              "14:30 重点复核电子器件、电子信息、机械、化工这些方向里，哪些仍同时留在成交和涨幅前排。",
-              "14:30 继续看泰山石油、人民同泰、中恒集团、电投能源、甘李药业、厦门钨业这批午后确认样本能否维持 VWAP 上方和相对板块强势。",
-              "14:30 对南大光电、蓝思科技、华亚智能、蓝箭电子、烽火通信做二次分层，确认哪些只是站回 VWAP，哪些真正完成相对强势修复。",
-              "14:30 把行业 fallback 重新压缩成更细的概念或个股承接线索，避免尾盘仍停留在粗行业标签上。"
-            ],
-            "do_not_do": [
-              "不要把扩散行情理解成可以对所有活跃票无差别追高。",
-              "不要把行业榜前排直接翻译成最终主线，而跳过细分验证。",
-              "不要把弱于板块的修复票和真正午后确认的强票并列处理。",
-              "不要因为今天宽度比上午好，就忽略 14:30 尾盘分化的风险。"
-            ],
-            "generated_at": "2026-07-14T14:05:00",
-            "source": "a-share-intraday-decision"
-          }
+          "has_ai_analysis": true
         }
       ]
     },
     {
       "date": "2026-07-13",
       "day_path": "data/days/2026-07-13.json",
-      "modified": "2026-07-14T13:55:19",
+      "modified": "2026-07-16T14:35:54",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -380,7 +395,7 @@
     {
       "date": "2026-07-10",
       "day_path": "data/days/2026-07-10.json",
-      "modified": "2026-07-14T13:55:19",
+      "modified": "2026-07-16T14:35:54",
       "checkpoint_count": 6,
       "checkpoints": [
         {
@@ -430,7 +445,7 @@
     {
       "date": "2026-07-09",
       "day_path": "data/days/2026-07-09.json",
-      "modified": "2026-07-14T13:55:19",
+      "modified": "2026-07-16T14:35:54",
       "checkpoint_count": 5,
       "checkpoints": [
         {
@@ -473,7 +488,7 @@
     {
       "date": "2026-07-08",
       "day_path": "data/days/2026-07-08.json",
-      "modified": "2026-07-14T13:55:19",
+      "modified": "2026-07-16T14:35:54",
       "checkpoint_count": 3,
       "checkpoints": [
         {
@@ -502,7 +517,7 @@
     {
       "date": "2026-07-07",
       "day_path": "data/days/2026-07-07.json",
-      "modified": "2026-07-14T13:55:19",
+      "modified": "2026-07-16T14:35:54",
       "checkpoint_count": 4,
       "checkpoints": [
         {
@@ -538,7 +553,7 @@
     {
       "date": "2026-07-06",
       "day_path": "data/days/2026-07-06.json",
-      "modified": "2026-07-14T13:55:19",
+      "modified": "2026-07-16T14:35:54",
       "checkpoint_count": 5,
       "checkpoints": [
         {
@@ -581,7 +596,7 @@
     {
       "date": "2026-07-03",
       "day_path": "data/days/2026-07-03.json",
-      "modified": "2026-07-14T13:55:19",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 6,
       "checkpoints": [
         {
@@ -631,7 +646,7 @@
     {
       "date": "2026-07-02",
       "day_path": "data/days/2026-07-02.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -688,7 +703,7 @@
     {
       "date": "2026-07-01",
       "day_path": "data/days/2026-07-01.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 5,
       "checkpoints": [
         {
@@ -731,7 +746,7 @@
     {
       "date": "2026-06-30",
       "day_path": "data/days/2026-06-30.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 3,
       "checkpoints": [
         {
@@ -760,7 +775,7 @@
     {
       "date": "2026-06-29",
       "day_path": "data/days/2026-06-29.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -817,7 +832,7 @@
     {
       "date": "2026-06-26",
       "day_path": "data/days/2026-06-26.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 1,
       "checkpoints": [
         {
@@ -832,7 +847,7 @@
     {
       "date": "2026-06-25",
       "day_path": "data/days/2026-06-25.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 6,
       "checkpoints": [
         {
@@ -882,7 +897,7 @@
     {
       "date": "2026-06-24",
       "day_path": "data/days/2026-06-24.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -939,7 +954,7 @@
     {
       "date": "2026-06-23",
       "day_path": "data/days/2026-06-23.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -996,7 +1011,7 @@
     {
       "date": "2026-06-22",
       "day_path": "data/days/2026-06-22.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -1053,7 +1068,7 @@
     {
       "date": "2026-06-18",
       "day_path": "data/days/2026-06-18.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -1110,7 +1125,7 @@
     {
       "date": "2026-06-17",
       "day_path": "data/days/2026-06-17.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 7,
       "checkpoints": [
         {
@@ -1165,66 +1180,9 @@
       ]
     },
     {
-      "date": "2026-06-16",
-      "day_path": "data/days/2026-06-16.json",
-      "modified": "2026-07-14T13:55:20",
-      "checkpoint_count": 7,
-      "checkpoints": [
-        {
-          "id": "scan_0945",
-          "label": "09:45 第一轮冲击",
-          "modified": "2026-06-16T10:04:26",
-          "risk_preference": "低",
-          "has_ai_analysis": true
-        },
-        {
-          "id": "scan_1030",
-          "label": "10:30 换手确认",
-          "modified": "2026-06-16T10:39:26",
-          "risk_preference": "低",
-          "has_ai_analysis": true
-        },
-        {
-          "id": "scan_1120",
-          "label": "11:20 上午收尾",
-          "modified": "2026-06-16T11:43:14",
-          "risk_preference": "低",
-          "has_ai_analysis": true
-        },
-        {
-          "id": "scan_1330",
-          "label": "13:30 午后重启",
-          "modified": "2026-06-16T14:23:15",
-          "risk_preference": "高",
-          "has_ai_analysis": true
-        },
-        {
-          "id": "scan_strategy_1430",
-          "label": "14:20 策略包",
-          "modified": "2026-06-16T14:45:06",
-          "risk_preference": "低",
-          "has_ai_analysis": false
-        },
-        {
-          "id": "scan_1430",
-          "label": "14:30 尾盘确认",
-          "modified": "2026-06-16T14:40:36",
-          "risk_preference": "低",
-          "has_ai_analysis": true
-        },
-        {
-          "id": "scan_1510",
-          "label": "15:10 盘后复盘",
-          "modified": "2026-06-16T18:04:49",
-          "risk_preference": "低",
-          "has_ai_analysis": true
-        }
-      ]
-    },
-    {
       "date": "2026-06-15",
       "day_path": "data/days/2026-06-15.json",
-      "modified": "2026-07-14T13:55:20",
+      "modified": "2026-07-16T14:35:55",
       "checkpoint_count": 0,
       "checkpoints": []
     }
@@ -1945,6 +1903,84 @@
   "recent_exports": [
     {
       "name": "ai_analysis.json",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/ai_analysis.json",
+      "modified": "2026-07-16T14:35:53",
+      "size": 4588
+    },
+    {
+      "name": "checkpoint_decision_summary.json",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/checkpoint_decision_summary.json",
+      "modified": "2026-07-16T14:17:04",
+      "size": 15901
+    },
+    {
+      "name": "summary.json",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/summary.json",
+      "modified": "2026-07-16T14:17:04",
+      "size": 6860
+    },
+    {
+      "name": "candidate_event_log.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/candidate_event_log.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 28409
+    },
+    {
+      "name": "errors.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/errors.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 444
+    },
+    {
+      "name": "portfolio_decision_rules.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/portfolio_decision_rules.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 5635
+    },
+    {
+      "name": "pullback_setups.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/pullback_setups.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 9503
+    },
+    {
+      "name": "portfolio_afternoon_status.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/portfolio_afternoon_status.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 1486
+    },
+    {
+      "name": "candidate_afternoon_restart.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/candidate_afternoon_restart.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 1895
+    },
+    {
+      "name": "sector_afternoon_change.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/sector_afternoon_change.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 22516
+    },
+    {
+      "name": "hot_board_front_core.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/hot_board_front_core.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 12479
+    },
+    {
+      "name": "market_sector_scan.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/market_sector_scan.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 109647
+    },
+    {
+      "name": "market_overview.csv",
+      "relative_path": "tool/intraday_exports/2026-07-16/scan_1330/market_overview.csv",
+      "modified": "2026-07-16T14:17:04",
+      "size": 282
+    },
+    {
+      "name": "ai_analysis.json",
       "relative_path": "tool/intraday_exports/2026-07-14/scan_1330/ai_analysis.json",
       "modified": "2026-07-14T13:55:18",
       "size": 5208
@@ -2344,84 +2380,6 @@
       "relative_path": "tool/intraday_exports/2026-07-13/scan_1510/hot_board_front_core.csv",
       "modified": "2026-07-14T12:04:12",
       "size": 12480
-    },
-    {
-      "name": "market_sector_scan.csv",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_1510/market_sector_scan.csv",
-      "modified": "2026-07-14T12:04:12",
-      "size": 109639
-    },
-    {
-      "name": "market_overview.csv",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_1510/market_overview.csv",
-      "modified": "2026-07-14T12:04:12",
-      "size": 281
-    },
-    {
-      "name": "ai_analysis.json",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_1430/ai_analysis.json",
-      "modified": "2026-07-14T12:02:26",
-      "size": 3805
-    },
-    {
-      "name": "checkpoint_decision_summary.json",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_strategy_1430/checkpoint_decision_summary.json",
-      "modified": "2026-07-14T12:02:25",
-      "size": 2053
-    },
-    {
-      "name": "summary.json",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_strategy_1430/summary.json",
-      "modified": "2026-07-14T12:02:25",
-      "size": 5493
-    },
-    {
-      "name": "candidate_event_log.csv",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_strategy_1430/candidate_event_log.csv",
-      "modified": "2026-07-14T12:02:25",
-      "size": 2293
-    },
-    {
-      "name": "errors.csv",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_strategy_1430/errors.csv",
-      "modified": "2026-07-14T12:02:25",
-      "size": 0
-    },
-    {
-      "name": "strategy_summary.csv",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_strategy_1430/strategy_summary.csv",
-      "modified": "2026-07-14T12:02:25",
-      "size": 172
-    },
-    {
-      "name": "strategy_candidates_float_unavailable.csv",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_strategy_1430/strategy_candidates_float_unavailable.csv",
-      "modified": "2026-07-14T12:02:25",
-      "size": 0
-    },
-    {
-      "name": "strategy_candidates_float_excluded.csv",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_strategy_1430/strategy_candidates_float_excluded.csv",
-      "modified": "2026-07-14T12:02:25",
-      "size": 3662
-    },
-    {
-      "name": "strategy_candidates.csv",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_strategy_1430/strategy_candidates.csv",
-      "modified": "2026-07-14T12:02:25",
-      "size": 2715
-    },
-    {
-      "name": "checkpoint_decision_summary.json",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_1430/checkpoint_decision_summary.json",
-      "modified": "2026-07-14T12:00:00",
-      "size": 13325
-    },
-    {
-      "name": "summary.json",
-      "relative_path": "tool/intraday_exports/2026-07-13/scan_1430/summary.json",
-      "modified": "2026-07-14T12:00:00",
-      "size": 6847
     }
   ]
 }
